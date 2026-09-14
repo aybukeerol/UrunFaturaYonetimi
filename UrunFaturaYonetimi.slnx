@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="UrunFaturaYonetimi.Business/UrunFaturaYonetimi.Business.csproj" Id="01bd0cf3-3bd1-4d59-b29d-2c876edf5ed8" />
+  <Project Path="UrunFaturaYonetimi.DataAccess/UrunFaturaYonetimi.DataAccess.csproj" Id="4f3f168a-61ab-4c37-a894-e2fd7c8cb6e5" />
+  <Project Path="UrunFaturaYonetimi.Entities/UrunFaturaYonetimi.Entities.csproj" Id="ed9a31dc-09e4-47f8-b2d4-3435ae486ac4" />
+  <Project Path="UrunFaturaYonetimi/UrunFaturaYonetimi.csproj" Id="0fd950de-65cf-48db-b81f-3452f16248db">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
+</Solution>
