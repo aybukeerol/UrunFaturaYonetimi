@@ -1,15 +1,17 @@
-﻿using System;
+﻿using Microsoft.Data.SqlClient;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Linq;
-using System.IO;
-using System.Text;
 using System.Drawing.Printing;
-using System.Text.RegularExpressions;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient;
 using UrunFaturaYonetimi.Business.Abstract;
+using UrunFaturaYonetimi.Business.Services;
 
 namespace UrunFaturaYonetimi
 {
@@ -33,6 +35,13 @@ namespace UrunFaturaYonetimi
         private TableLayoutPanel rightLayout;
         private Button btnTema;
         private bool _isDarkMode = false;
+        // Sadece arayüz renklerinin ilk hâli saklanır; veri/işlem kodlarına dokunulmaz.
+        private readonly Dictionary<Control, Color[]> _temaOrijinalRenkleri =
+            new Dictionary<Control, Color[]>();
+        private readonly Dictionary<DataGridView, Color[]> _temaGridRenkleri =
+            new Dictionary<DataGridView, Color[]>();
+        private readonly Dictionary<RoundedPanel, Color[]> _temaKartRenkleri =
+            new Dictionary<RoundedPanel, Color[]>();
         private EventHandler _dashboardResizeHandler;
 
         // =========================================================
@@ -253,570 +262,580 @@ namespace UrunFaturaYonetimi
 
         private void SolMenuOlustur()
         {
-            pnlMenu =
-                new Panel();
+            pnlMenu = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                BackColor = _sidebar
+            };
 
-            pnlMenu.Dock =
-                DockStyle.Fill;
+            TableLayoutPanel side = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                Padding = new Padding(0),
+                ColumnCount = 1,
+                RowCount = 3,
+                BackColor = _sidebar
+            };
+            side.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            side.RowStyles.Add(new RowStyle(SizeType.Absolute, 125F));
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            side.RowStyles.Add(new RowStyle(SizeType.Absolute, 116F));
 
-            pnlMenu.Margin =
-                new Padding(0);
+            // Logo ve alt başlık ayrı satırlarda: pencere/DPI değişince çakışmaz.
+            Panel logoPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                BackColor = _sidebar
+            };
+            Label logo = new Label
+            {
+                Text = "NEXORA",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 17F, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(17, 14)
+            };
+            Label erp = new Label
+            {
+                Text = "ERP",
+                AutoSize = false,
+                Size = new Size(36, 22),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = _primary,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 8F, FontStyle.Bold)
+            };
+            Label subtitle = new Label
+            {
+                Text = "İşletme Yönetim Platformu",
+                AutoSize = false,
+                AutoEllipsis = true,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = Color.FromArgb(190, 196, 202),
+                Location = new Point(19, 74),
+                Height = 35
+            };
+            Panel logoLine = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 1,
+                BackColor = Color.FromArgb(66, 72, 77)
+            };
+            logoPanel.Controls.Add(logo);
+            logoPanel.Controls.Add(erp);
+            logoPanel.Controls.Add(subtitle);
+            logoPanel.Controls.Add(logoLine);
+            Action logoYerlesimi = delegate
+            {
+                erp.Left = logo.Right + 9;
+                erp.Top = logo.Top + Math.Max(0, (logo.Height - erp.Height) / 2);
+                subtitle.Top = logo.Bottom + 8;
+                erp.Visible = erp.Right < logoPanel.ClientSize.Width - 12;
+                subtitle.Width = Math.Max(80, logoPanel.ClientSize.Width - 36);
+            };
+            logoPanel.Resize += delegate { logoYerlesimi(); };
+            logoYerlesimi();
 
-            pnlMenu.BackColor =
-                _sidebar;
+            // Standart Windows simge fontuna bağımlı olmayan, çizilerek oluşturulan
+            // sade kısaltmalar: eksik ikon/bozuk karakter sorunu oluşturmaz.
+            FlowLayoutPanel menu = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                Margin = new Padding(0),
+                Padding = new Padding(12, 12, 12, 8),
+                BackColor = _sidebar
+            };
+            menu.Controls.Add(MenuButton("home", "Genel Bakış", Dashboard_Click));
+            menu.Controls.Add(MenuButton("people", "Müşteriler", Musteriler_Click));
+            menu.Controls.Add(MenuButton("building", "Kurumsal Müşteriler", Kurumsal_Click));
+            menu.Controls.Add(MenuButton("wallet", "Cari Hesaplar", Cari_Click));
+            menu.Controls.Add(MenuButton("box", "Ürün / Hizmetler", Urunler_Click));
+            menu.Controls.Add(MenuButton("plus", "Yeni Fatura", YeniFatura_Click));
+            menu.Controls.Add(MenuButton("invoice", "Faturalar", Faturalar_Click));
+            menu.Controls.Add(MenuButton("user", "Kullanıcılar", Kullanicilar_Click));
+            menu.Controls.Add(MenuButton("gear", "Ayarlar", Ayarlar_Click));
+            Action menuYerlesimi = delegate
+            {
+                int width = Math.Max(120, menu.ClientSize.Width -
+                    menu.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 4);
+                foreach (Control item in menu.Controls)
+                    item.Width = width;
+            };
+            menu.Resize += delegate { menuYerlesimi(); };
 
-            TableLayoutPanel side =
-                new TableLayoutPanel();
-
-            side.Dock =
-                DockStyle.Fill;
-
-            side.Margin =
-                new Padding(0);
-
-            side.Padding =
-                new Padding(0);
-
-            side.ColumnCount =
-                1;
-
-            side.RowCount =
-                3;
-
-            side.ColumnStyles.Add(
-                new ColumnStyle(
-                    SizeType.Percent,
-                    100F));
-
-            side.RowStyles.Add(
-                new RowStyle(
-                    SizeType.Absolute,
-                    96F));
-
-            side.RowStyles.Add(
-                new RowStyle(
-                    SizeType.Percent,
-                    100F));
-
-            side.RowStyles.Add(
-                new RowStyle(
-                    SizeType.Absolute,
-                    86F));
-
-            // -----------------------------------------------------
-            // LOGO
-            // -----------------------------------------------------
-
-            Panel logoPanel =
-                new Panel();
-
-            logoPanel.Dock =
-                DockStyle.Fill;
-
-            logoPanel.Margin =
-                new Padding(0);
-
-            logoPanel.BackColor =
-                _sidebar;
-
-            Label logo =
-                new Label();
-
-            logo.Text =
-                "NEXORA";
-
-            logo.AutoSize =
-                true;
-
-            logo.Font =
-                new Font(
-                    "Segoe UI",
-                    19F,
-                    FontStyle.Bold);
-
-            logo.ForeColor =
-                Color.White;
-
-            logo.Location =
-                new Point(
-                    16,
-                    15);
-
-            logoPanel.Controls.Add(
-                logo);
-
-            Label erp =
-                new Label();
-
-            erp.Text =
-                "ERP";
-
-            erp.AutoSize =
-                false;
-
-            erp.Size =
-                new Size(
-                    35,
-                    18);
-
-            erp.TextAlign =
-                ContentAlignment.MiddleCenter;
-
-            erp.BackColor =
-                _primary;
-
-            erp.ForeColor =
-                Color.White;
-
-            erp.Font =
-                new Font(
-                    "Segoe UI",
-                    10.5F,
-                    FontStyle.Bold);
-
-            erp.Location =
-                new Point(
-                    118,
-                    21);
-
-            logoPanel.Controls.Add(
-                erp);
-
-            logoPanel.Resize +=
-                delegate
+            Panel accountHost = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                Padding = new Padding(9, 8, 9, 9),
+                BackColor = _sidebar
+            };
+            RoundedPanel account = new RoundedPanel
+            {
+                Dock = DockStyle.Fill,
+                Radius = 6,
+                FillColor = Color.FromArgb(46, 52, 57),
+                BorderColor = Color.FromArgb(72, 78, 83),
+                BorderThickness = 1
+            };
+            PictureBox avatar = new PictureBox
+            {
+                Size = new Size(34, 34),
+                Location = new Point(13, 23),
+                SizeMode = PictureBoxSizeMode.CenterImage,
+                Image = IconBitmap("\uE77B", 15, Color.White, 34, _primary)
+            };
+            Label accountName = new Label
+            {
+                Text = string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Kullanıcı" : _kullaniciAdi,
+                AutoSize = false,
+                AutoEllipsis = true,
+                Location = new Point(58, 18),
+                Height = 30,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            Label accountCaption = new Label
+            {
+                Text = "Hesabım",
+                AutoSize = false,
+                Location = new Point(58, 49),
+                Height = 30,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = Color.FromArgb(196, 201, 207),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            Button logout = new Button
+            {
+                Size = new Size(32, 32),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(46, 52, 57),
+                ForeColor = Color.White,
+                Text = "↪",
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            logout.FlatAppearance.BorderSize = 0;
+            logout.AccessibleName = "Oturumu kapat";
+            logout.Text = "";
+            logout.Paint += delegate (object sender, PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen pen = new Pen(Color.FromArgb(232, 239, 247), 1.8F))
                 {
-                    erp.Left =
-                        logo.Right + 8;
-                };
-
-            Label subtitle =
-                new Label();
-
-            subtitle.Text =
-                "İşletme Yönetim Platformu";
-
-            subtitle.AutoSize =
-                true;
-
-            subtitle.Font =
-                new Font(
-                    "Segoe UI",
-                    10.5F);
-
-            subtitle.ForeColor =
-                Color.FromArgb(
-                    190,
-                    196,
-                    202);
-
-            subtitle.Location =
-                new Point(
-                    17,
-                    49);
-
-            logoPanel.Controls.Add(
-                subtitle);
-
-            Panel logoLine =
-                new Panel();
-
-            logoLine.Dock =
-                DockStyle.Bottom;
-
-            logoLine.Height =
-                1;
-
-            logoLine.BackColor =
-                Color.FromArgb(
-                    66,
-                    72,
-                    77);
-
-            logoPanel.Controls.Add(
-                logoLine);
-
-            // -----------------------------------------------------
-            // MENÜ
-            // -----------------------------------------------------
-
-            FlowLayoutPanel menu =
-                new FlowLayoutPanel();
-
-            menu.Dock =
-                DockStyle.Fill;
-
-            menu.FlowDirection =
-                FlowDirection.TopDown;
-
-            menu.WrapContents =
-                false;
-
-            menu.AutoScroll =
-                true;
-
-            menu.Margin =
-                new Padding(0);
-
-            menu.Padding =
-                new Padding(
-                    14,
-                    20,
-                    14,
-                    14);
-
-            menu.BackColor =
-                _sidebar;
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE80F",
-                    "Genel Bakış",
-                    Dashboard_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE716",
-                    "Müşteriler",
-                    Musteriler_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE821",
-                    "Kurumsal Müşteriler",
-                    Kurumsal_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE8C7",
-                    "Cari Hesaplar",
-                    Cari_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE7C3",
-                    "Ürün / Hizmetler",
-                    Urunler_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE70F",
-                    "Yeni Fatura",
-                    YeniFatura_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE8A5",
-                    "Faturalar",
-                    Faturalar_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE77B",
-                    "Kullanıcılar",
-                    Kullanicilar_Click));
-
-            menu.Controls.Add(
-                MenuButton(
-                    "\uE713",
-                    "Ayarlar",
-                    Ayarlar_Click));
-
-            // -----------------------------------------------------
-            // ALT HESAP KARTI
-            // -----------------------------------------------------
-
-            Panel accountHost =
-                new Panel();
-
-            accountHost.Dock =
-                DockStyle.Fill;
-
-            accountHost.Margin =
-                new Padding(0);
-
-            accountHost.Padding =
-                new Padding(
-                    7,
-                    9,
-                    7,
-                    9);
-
-            accountHost.BackColor =
-                _sidebar;
-
-            RoundedPanel account =
-                new RoundedPanel();
-
-            account.Dock =
-                DockStyle.Fill;
-
-            account.Radius =
-                6;
-
-            account.FillColor =
-                Color.FromArgb(
-                    46,
-                    52,
-                    57);
-
-            account.BorderColor =
-                Color.FromArgb(
-                    72,
-                    78,
-                    83);
-
-            account.BorderThickness =
-                1;
-
-            PictureBox avatar =
-                new PictureBox();
-
-            avatar.Size =
-                new Size(
-                    34,
-                    34);
-
-            avatar.Location =
-                new Point(
-                    8,
-                    10);
-
-            avatar.SizeMode =
-                PictureBoxSizeMode.CenterImage;
-
-            avatar.Image =
-                IconBitmap(
-                    "\uE77B",
-                    17,
-                    Color.White,
-                    34,
-                    Color.FromArgb(
-                        0,
-                        88,
-                        189));
-
-            account.Controls.Add(
-                avatar);
-
-            Label accountName =
-                new Label();
-
-            accountName.Text =
-                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Kullanıcı" : _kullaniciAdi;
-
-            accountName.AutoSize =
-                false;
-
-            accountName.Size =
-                new Size(
-                    137,
-                    18);
-
-            accountName.Location =
-                new Point(
-                    49,
-                    10);
-
-            accountName.Font =
-                new Font(
-                    "Segoe UI",
-                    11.5F,
-                    FontStyle.Bold);
-
-            accountName.ForeColor =
-                Color.White;
-
-            account.Controls.Add(
-                accountName);
-
-            Label accountCaption =
-                new Label();
-
-            accountCaption.Text =
-                "Hesabım";
-
-            accountCaption.AutoSize =
-                true;
-
-            accountCaption.Location =
-                new Point(
-                    49,
-                    31);
-
-            accountCaption.Font =
-                new Font(
-                    "Segoe UI",
-                    10.5F);
-
-            accountCaption.ForeColor =
-                Color.FromArgb(
-                    196,
-                    201,
-                    207);
-
-            account.Controls.Add(
-                accountCaption);
-
-            Button logout =
-                new Button();
-
-            logout.Size =
-                new Size(
-                    32,
-                    32);
-
-            logout.FlatStyle =
-                FlatStyle.Flat;
-
-            logout.FlatAppearance.BorderSize =
-                0;
-
-            logout.BackColor =
-                Color.FromArgb(
-                    46,
-                    52,
-                    57);
-
-            logout.Image =
-                IconBitmap(
-                    "\uE8AC",
-                    14,
-                    Color.FromArgb(
-                        211,
-                        217,
-                        223),
-                    22,
-                    Color.Transparent);
-
-            logout.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Right;
-
-            logout.Location =
-                new Point(
-                    198,
-                    11);
-
-            logout.Cursor =
-                Cursors.Hand;
-
-            logout.Click +=
-                delegate
-                {
-                    Close();
-                };
-
-            account.Resize +=
-                delegate
-                {
-                    logout.Left =
-                        account.ClientSize.Width -
-                        logout.Width -
-                        7;
-                };
-
-            account.Controls.Add(
-                logout);
-
-            accountHost.Controls.Add(
-                account);
-
-            side.Controls.Add(
-                logoPanel,
-                0,
-                0);
-
-            side.Controls.Add(
-                menu,
-                0,
-                1);
-
-            side.Controls.Add(
-                accountHost,
-                0,
-                2);
-
-            pnlMenu.Controls.Add(
-                side);
-
-            rootLayout.Controls.Add(
-                pnlMenu,
-                0,
-                0);
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    e.Graphics.DrawLines(pen, new PointF[] {
+                        new PointF(10, 8), new PointF(5, 8),
+                        new PointF(5, 25), new PointF(10, 25) });
+                    e.Graphics.DrawLine(pen, 11, 16, 26, 16);
+                    e.Graphics.DrawLines(pen, new PointF[] {
+                        new PointF(20, 10), new PointF(26, 16),
+                        new PointF(20, 22) });
+                }
+            };
+            logout.Click += delegate
+            {
+                DialogResult cevap = MessageBox.Show(this,
+                    "Çıkmak istediğinize emin misiniz?",
+                    "NEXORA - Oturumu Kapat",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2);
+                if (cevap == DialogResult.Yes) Close();
+            };
+            Action hesabiAc = delegate { HesabimAc(); };
+            account.Cursor = Cursors.Hand;
+            avatar.Cursor = Cursors.Hand;
+            accountName.Cursor = Cursors.Hand;
+            accountCaption.Cursor = Cursors.Hand;
+            account.Click += delegate { hesabiAc(); };
+            avatar.Click += delegate { hesabiAc(); };
+            accountName.Click += delegate { hesabiAc(); };
+            accountCaption.Click += delegate { hesabiAc(); };
+            account.Controls.Add(avatar);
+            account.Controls.Add(accountName);
+            account.Controls.Add(accountCaption);
+            account.Controls.Add(logout);
+            Action hesapYerlesimi = delegate
+            {
+                logout.Left = account.ClientSize.Width - logout.Width - 8;
+                logout.Top = Math.Max(7, (account.ClientSize.Height - logout.Height) / 2);
+                accountName.Top = Math.Max(9, (account.ClientSize.Height - 64) / 2);
+                accountCaption.Top = accountName.Bottom + 1;
+                int metinGenisligi = Math.Max(45, logout.Left - accountName.Left - 7);
+                accountName.Width = metinGenisligi;
+                accountCaption.Width = metinGenisligi;
+                avatar.Top = Math.Max(8, (account.ClientSize.Height - avatar.Height) / 2);
+            };
+            account.Resize += delegate { hesapYerlesimi(); };
+            accountHost.Controls.Add(account);
+
+            side.Controls.Add(logoPanel, 0, 0);
+            side.Controls.Add(menu, 0, 1);
+            side.Controls.Add(accountHost, 0, 2);
+            pnlMenu.Controls.Add(side);
+            rootLayout.Controls.Add(pnlMenu, 0, 0);
+            menuYerlesimi();
+            hesapYerlesimi();
         }
 
-        private Button MenuButton(
-            string glyph,
-            string text,
-            EventHandler click)
+        // Menü simgeleri metin/font glifleri yerine GDI+ ile çizilir;
+        // böylece Windows dilinde veya farklı DPI değerlerinde bozulmaz.
+        private Button MenuButton(string glyph, string text, EventHandler click)
         {
-            Button button =
-                new Button();
-
-            button.Text =
-                text;
-
-            button.Size =
-                new Size(360, 54);
-
-            button.Margin = new Padding(0, 0, 0, 6);
-
-            button.Padding = new Padding(12, 0, 0, 0);
-
-            button.FlatStyle =
-                FlatStyle.Flat;
-
-            button.FlatAppearance.BorderSize =
-                0;
-
-            button.FlatAppearance.MouseOverBackColor =
-                _sidebarHover;
-
-            button.FlatAppearance.MouseDownBackColor =
-                Color.FromArgb(
-                    35,
-                    40,
-                    44);
-
-            button.BackColor =
-                _sidebar;
-
-            button.ForeColor =
-                Color.FromArgb(
-                    226,
-                    230,
-                    234);
-
-            button.Font =
-                new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
-
-            button.Image =
-                IconBitmap(
-                    glyph,
-                    12.5F,
-                    Color.FromArgb(
-                        211,
-                        217,
-                        223),
-                    24,
-                    Color.Transparent);
-
-            button.ImageAlign =
-                ContentAlignment.MiddleLeft;
-
-            button.TextImageRelation =
-                TextImageRelation.ImageBeforeText;
-
-            button.TextAlign =
-                ContentAlignment.MiddleLeft;
-
-            button.Cursor =
-                Cursors.Hand;
-
-            button.Click +=
-                click;
-
+            Button button = new Button
+            {
+                Text = text,
+                Size = new Size(230, 48),
+                Margin = new Padding(0, 0, 0, 4),
+                Padding = new Padding(46, 0, 5, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = _sidebar,
+                ForeColor = Color.FromArgb(226, 230, 234),
+                Font = new Font("Segoe UI", 10F, FontStyle.Regular),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = _sidebarHover;
+            button.FlatAppearance.MouseDownBackColor = Color.FromArgb(35, 40, 44);
+            button.Paint += delegate (object sender, PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                float x = 14F;
+                float y = (button.Height - 20F) / 2F;
+                using (Pen pen = new Pen(Color.FromArgb(223, 232, 241), 1.65F))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    pen.LineJoin = LineJoin.Round;
+                    switch (glyph)
+                    {
+                        case "home":
+                            e.Graphics.DrawLines(pen, new PointF[] { new PointF(x, y + 9), new PointF(x + 10, y + 1), new PointF(x + 20, y + 9) });
+                            e.Graphics.DrawLines(pen, new PointF[] { new PointF(x + 3, y + 9), new PointF(x + 3, y + 19), new PointF(x + 17, y + 19), new PointF(x + 17, y + 9) });
+                            e.Graphics.DrawRectangle(pen, x + 8, y + 13, 4, 6);
+                            break;
+                        case "people":
+                            e.Graphics.DrawEllipse(pen, x + 7, y + 1, 7, 7);
+                            e.Graphics.DrawArc(pen, x + 4, y + 10, 14, 11, 185, 170);
+                            e.Graphics.DrawEllipse(pen, x + 1, y + 6, 4, 4);
+                            e.Graphics.DrawArc(pen, x, y + 12, 7, 7, 185, 120);
+                            break;
+                        case "building":
+                            e.Graphics.DrawRectangle(pen, x + 2, y + 7, 16, 12);
+                            e.Graphics.DrawRectangle(pen, x + 6, y + 2, 8, 5);
+                            e.Graphics.DrawLine(pen, x, y + 10, x + 20, y + 10);
+                            e.Graphics.DrawLine(pen, x + 6, y + 14, x + 8, y + 14);
+                            e.Graphics.DrawLine(pen, x + 12, y + 14, x + 14, y + 14);
+                            break;
+                        case "wallet":
+                            e.Graphics.DrawRectangle(pen, x + 1, y + 5, 18, 14);
+                            e.Graphics.DrawRectangle(pen, x + 12, y + 10, 8, 5);
+                            e.Graphics.DrawLine(pen, x + 4, y + 2, x + 16, y + 2);
+                            break;
+                        case "box":
+                            e.Graphics.DrawLines(pen, new PointF[] { new PointF(x + 1, y + 6), new PointF(x + 10, y + 1), new PointF(x + 19, y + 6), new PointF(x + 10, y + 11), new PointF(x + 1, y + 6) });
+                            e.Graphics.DrawLines(pen, new PointF[] { new PointF(x + 1, y + 6), new PointF(x + 1, y + 16), new PointF(x + 10, y + 21), new PointF(x + 19, y + 16), new PointF(x + 19, y + 6) });
+                            e.Graphics.DrawLine(pen, x + 10, y + 11, x + 10, y + 21);
+                            break;
+                        case "plus":
+                            e.Graphics.DrawRectangle(pen, x + 2, y + 2, 16, 17);
+                            e.Graphics.DrawLine(pen, x + 10, y + 6, x + 10, y + 15);
+                            e.Graphics.DrawLine(pen, x + 6, y + 10.5F, x + 14, y + 10.5F);
+                            break;
+                        case "invoice":
+                            e.Graphics.DrawLines(pen, new PointF[] { new PointF(x + 3, y + 1), new PointF(x + 14, y + 1), new PointF(x + 18, y + 5), new PointF(x + 18, y + 19), new PointF(x + 3, y + 19), new PointF(x + 3, y + 1) });
+                            e.Graphics.DrawLine(pen, x + 6, y + 9, x + 15, y + 9);
+                            e.Graphics.DrawLine(pen, x + 6, y + 13, x + 15, y + 13);
+                            break;
+                        case "user":
+                            e.Graphics.DrawEllipse(pen, x + 6, y + 1, 8, 8);
+                            e.Graphics.DrawArc(pen, x + 2, y + 11, 16, 10, 185, 170);
+                            break;
+                        case "gear":
+                            e.Graphics.DrawEllipse(pen, x + 4, y + 4, 12, 12);
+                            e.Graphics.DrawEllipse(pen, x + 8, y + 8, 4, 4);
+                            for (int i = 0; i < 8; i++)
+                            {
+                                double angle = i * Math.PI / 4;
+                                float dx = (float)Math.Cos(angle);
+                                float dy = (float)Math.Sin(angle);
+                                e.Graphics.DrawLine(pen, x + 10 + dx * 7, y + 10 + dy * 7, x + 10 + dx * 10, y + 10 + dy * 10);
+                            }
+                            break;
+                    }
+                }
+            };
+            button.Click += click;
             return button;
+        }
+
+        // =========================================================
+        // HESABIM - ana içerikte açılır; mevcut oturum işlemleri korunur.
+        // =========================================================
+        private void HesabimAc()
+        {
+            SayfayiTemizle("Hesabım");
+            pnlContent.AutoScroll = true;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
+
+            Panel page = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(Math.Max(740, pnlContent.ClientSize.Width), 1030),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                BackColor = Color.FromArgb(246, 249, 253)
+            };
+            pnlContent.Controls.Add(page);
+
+            RoundedPanel header = new RoundedPanel
+            {
+                Location = new Point(24, 22),
+                Size = new Size(Math.Max(690, page.Width - 48), 118),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Radius = 9,
+                FillColor = Color.White,
+                BorderColor = _border,
+                BorderThickness = 1
+            };
+            page.Controls.Add(header);
+            Label title = new Label
+            {
+                Text = "Hesabım",
+                Location = new Point(22, 19),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 19F, FontStyle.Bold),
+                ForeColor = _text
+            };
+            header.Controls.Add(title);
+            header.Controls.Add(new Label
+            {
+                Text = "Profiliniz ve oturum ayarlarınız",
+                Location = new Point(24, 72),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10F),
+                ForeColor = _muted
+            });
+
+            RoundedPanel profile = new RoundedPanel
+            {
+                Location = new Point(24, 156),
+                Size = new Size(Math.Max(690, page.Width - 48), 208),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Radius = 9,
+                FillColor = Color.White,
+                BorderColor = _border,
+                BorderThickness = 1
+            };
+            page.Controls.Add(profile);
+            profile.Controls.Add(new Label
+            {
+                Text = "Profil Bilgileri",
+                Location = new Point(22, 17),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+                ForeColor = _text
+            });
+            profile.Controls.Add(new Label
+            {
+                Text = "Kullanıcı adı",
+                Location = new Point(24, 72),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = _muted
+            });
+            TextBox username = new TextBox
+            {
+                Text = string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Kullanıcı" : _kullaniciAdi,
+                Location = new Point(24, 100),
+                Size = new Size(360, 32),
+                ReadOnly = true,
+                BackColor = Color.FromArgb(247, 249, 252),
+                ForeColor = _text,
+                Font = new Font("Segoe UI", 10F)
+            };
+            profile.Controls.Add(username);
+            profile.Controls.Add(new Label
+            {
+                Text = "Oturum durumu: Aktif",
+                Location = new Point(24, 153),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9.5F),
+                ForeColor = Color.FromArgb(22, 132, 75)
+            });
+
+            RoundedPanel security = new RoundedPanel
+            {
+                Location = new Point(24, 380),
+                Size = new Size(Math.Max(690, page.Width - 48), 370),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Radius = 9,
+                FillColor = Color.White,
+                BorderColor = _border,
+                BorderThickness = 1
+            };
+            page.Controls.Add(security);
+            security.Controls.Add(new Label
+            {
+                Text = "Şifremi Değiştir",
+                Location = new Point(22, 17),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+                ForeColor = _text
+            });
+            security.Controls.Add(new Label
+            {
+                Text = "Mevcut şifrenizi doğrulayarak yeni şifre belirleyin.",
+                Location = new Point(24, 54),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9.5F),
+                ForeColor = _muted
+            });
+            Func<string, int, TextBox> sifreAlani = delegate (string baslik, int y)
+            {
+                security.Controls.Add(new Label
+                {
+                    Text = baslik,
+                    Location = new Point(24, y),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 9F),
+                    ForeColor = _muted
+                });
+                TextBox alan = new TextBox
+                {
+                    Location = new Point(24, y + 23),
+                    Size = new Size(350, 30),
+                    UseSystemPasswordChar = true,
+                    Font = new Font("Segoe UI", 10F)
+                };
+                security.Controls.Add(alan);
+                return alan;
+            };
+            TextBox mevcutSifre = sifreAlani("Mevcut şifre", 91);
+            TextBox yeniSifre = sifreAlani("Yeni şifre", 163);
+            TextBox tekrarSifre = sifreAlani("Yeni şifre tekrar", 235);
+            Button sifreKaydet = new Button
+            {
+                Text = "Şifreyi Güncelle",
+                Location = new Point(405, 286),
+                Size = new Size(190, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = _primary,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            sifreKaydet.FlatAppearance.BorderSize = 0;
+            security.Controls.Add(sifreKaydet);
+            sifreKaydet.Click += delegate
+            {
+                if (string.IsNullOrWhiteSpace(mevcutSifre.Text) ||
+                    string.IsNullOrWhiteSpace(yeniSifre.Text) ||
+                    string.IsNullOrWhiteSpace(tekrarSifre.Text))
+                {
+                    MessageBox.Show(this, "Lütfen üç şifre alanını da doldurun.",
+                        "Eksik Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                if (yeniSifre.Text != tekrarSifre.Text)
+                {
+                    MessageBox.Show(this, "Yeni şifreler birbiriyle eşleşmiyor.",
+                        "Şifre Kontrolü", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                if (!PasswordService.IsPasswordValid(yeniSifre.Text))
+                {
+                    MessageBox.Show(this, "Yeni şifre en az 8 karakter, harf ve rakam içermelidir.",
+                        "Şifre Kontrolü", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                try
+                {
+                    UserAccount oturum = _userService.Login(_kullaniciAdi, mevcutSifre.Text);
+                    if (oturum == null)
+                    {
+                        MessageBox.Show(this, "Mevcut şifre doğru değil.",
+                            "Kimlik Doğrulama", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    if (PasswordService.VerifyPassword(yeniSifre.Text,
+                        oturum.PasswordHash, oturum.PasswordSalt))
+                    {
+                        MessageBox.Show(this, "Yeni şifre mevcut şifreden farklı olmalıdır.",
+                            "Şifre Kontrolü", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    _userService.UpdatePassword(oturum, yeniSifre.Text);
+                    mevcutSifre.Clear(); yeniSifre.Clear(); tekrarSifre.Clear();
+                    MessageBox.Show(this, "Şifreniz başarıyla güncellendi.",
+                        "Hesabım", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Şifre güncellenemedi: " + ex.Message,
+                        "Hesabım", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            // Hesabım ekranında tema seçimi bulunmaz; tema üst çubuktan yönetilir.
+            RoundedPanel session = new RoundedPanel
+            {
+                Location = new Point(24, 778),
+                Size = new Size(Math.Max(690, page.Width - 48), 156),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Radius = 9,
+                FillColor = Color.White,
+                BorderColor = _border,
+                BorderThickness = 1
+            };
+            page.Controls.Add(session);
+            session.Controls.Add(new Label
+            {
+                Text = "Oturum İşlemleri",
+                Location = new Point(22, 18),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+                ForeColor = _text
+            });
+            session.Controls.Add(new Label
+            {
+                Text = "Hesabınızdan güvenli şekilde çıkış yapabilirsiniz.",
+                Location = new Point(24, 53),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9.5F),
+                ForeColor = _muted
+            });
+            Button oturumuKapat = new Button
+            {
+                Text = "Çıkış Yap",
+                Location = new Point(24, 93),
+                Size = new Size(170, 42),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(190, 44, 54),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
+            };
+            oturumuKapat.FlatAppearance.BorderSize = 0;
+            oturumuKapat.Click += delegate
+            {
+                if (MessageBox.Show(this, "Çıkmak istediğinize emin misiniz?",
+                    "NEXORA - Oturumu Kapat", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question, MessageBoxDefaultButton.Button2)
+                    == DialogResult.Yes) Close();
+            };
+            session.Controls.Add(oturumuKapat);
+            if (_isDarkMode) TemaSayfaKontrolleriniUygula(pnlContent);
         }
 
         // =========================================================
@@ -905,9 +924,9 @@ namespace UrunFaturaYonetimi
             txtAkilliArama =
                 new TextBox();
 
-            txtAkilliArama.Location = new Point(24, 20);
+            txtAkilliArama.Location = new Point(36, 10);
 
-            txtAkilliArama.Size = new Size(600, 38);
+            txtAkilliArama.Size = new Size(510, 24);
 
             txtAkilliArama.BorderStyle =
                 BorderStyle.None;
@@ -1236,7 +1255,7 @@ namespace UrunFaturaYonetimi
 
                     searchBox.Width =
                         Math.Max(
-                            370,
+                            240,
                             Math.Min(
                                 610,
                                 maxWidth));
@@ -1251,7 +1270,7 @@ namespace UrunFaturaYonetimi
 
                     txtAkilliArama.Width =
                         Math.Max(
-                            190,
+                            110,
                             shortcut.Left -
                             txtAkilliArama.Left -
                             10);
@@ -1377,6 +1396,18 @@ namespace UrunFaturaYonetimi
                 baslik;
 
             AramaSonuclariniKapat();
+            _temaOrijinalRenkleri.Clear();
+            _temaGridRenkleri.Clear();
+            _temaKartRenkleri.Clear();
+            // Yeni sayfanın kontrolleri oluşturulduktan sonra koyu temayı uygula.
+            if (_isDarkMode)
+            {
+                BeginInvoke(new Action(delegate
+                {
+                    if (!IsDisposed && pnlContent != null && !pnlContent.IsDisposed)
+                        TemaSayfaKontrolleriniUygula(pnlContent);
+                }));
+            }
         }
 
         // =========================================================
@@ -3069,8 +3100,8 @@ namespace UrunFaturaYonetimi
             page.ColumnCount = 1;
             page.RowCount = 5;
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 130F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 156F));
             page.RowStyles.Add(new RowStyle(SizeType.Absolute, 78F));
             page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             page.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
@@ -3113,7 +3144,7 @@ namespace UrunFaturaYonetimi
             subtitle.AutoSize = true;
             subtitle.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
             subtitle.ForeColor = Color.FromArgb(112, 123, 139);
-            subtitle.Location = new Point(2, 42);
+            subtitle.Location = new Point(2, 54);
             titleArea.Controls.Add(subtitle);
             header.Controls.Add(titleArea, 0, 0);
 
@@ -3213,7 +3244,7 @@ namespace UrunFaturaYonetimi
                 note.AutoSize = true;
                 note.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
                 note.ForeColor = Color.FromArgb(125, 136, 151);
-                note.Location = new Point(21, 88);
+                note.Location = new Point(21, 108);
                 card.Controls.Add(note);
 
                 Label icon = new Label();
@@ -3533,28 +3564,28 @@ namespace UrunFaturaYonetimi
             page.Dock = DockStyle.Fill; page.Margin = new Padding(0); page.Padding = new Padding(24, 18, 24, 16);
             page.BackColor = Color.FromArgb(246, 249, 253); page.ColumnCount = 1; page.RowCount = 5;
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 126F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 156F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
             page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 130F));
             pnlContent.Controls.Add(page);
 
             Panel header = new Panel(); header.Dock = DockStyle.Fill; header.BackColor = Color.Transparent;
             Label title = new Label(); title.Text = "Kurumsal Müşteriler"; title.AutoSize = true; title.Font = new Font("Segoe UI", 18F, FontStyle.Bold); title.Location = new Point(0, 2); header.Controls.Add(title);
-            Label tag = Badge("TÜZEL CARİ MODÜLÜ", Color.FromArgb(231, 239, 250), _primary); tag.Location = new Point(220, 8); header.Controls.Add(tag);
-            Label sub = new Label(); sub.Text = "Kayıtlı tüzel firmalar, VKN / Vergi daireleri ve kurumsal cari sözleşmeler"; sub.AutoSize = true; sub.Font = new Font("Segoe UI", 9.5F); sub.ForeColor = _muted; sub.Location = new Point(2, 42); header.Controls.Add(sub);
+            Label tag = Badge("TÜZEL CARİ MODÜLÜ", Color.FromArgb(231, 239, 250), _primary); tag.Location = new Point(0, 92); header.Controls.Add(tag);
+            Label sub = new Label(); sub.Text = "Kayıtlı tüzel firmalar, VKN / Vergi daireleri ve kurumsal cari sözleşmeler"; sub.AutoSize = true; sub.Font = new Font("Segoe UI", 9.5F); sub.ForeColor = _muted; sub.Location = new Point(2, 54); header.Controls.Add(sub);
             Button btnYeni = SmallActionButton("\uE710", "+ Yeni Kurumsal Müşteri", true); btnYeni.Size = new Size(210, 38); btnYeni.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnYeni);
             Button btnExcel = SmallActionButton("\uE896", "Excel İndir", false); btnExcel.Size = new Size(118, 38); btnExcel.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnExcel);
             Button btnGib = SmallActionButton("\uE72C", "Toplu GİB Sorgula", false); btnGib.Size = new Size(170, 38); btnGib.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnGib);
-            Action layoutHeader = delegate { btnYeni.Left = header.ClientSize.Width - btnYeni.Width; btnYeni.Top = 42; btnExcel.Left = btnYeni.Left - btnExcel.Width - 8; btnExcel.Top = 0; btnGib.Left = btnExcel.Left - btnGib.Width - 8; btnGib.Top = 0; }; header.Resize += delegate { layoutHeader(); }; layoutHeader(); page.Controls.Add(header, 0, 0);
+            Action layoutHeader = delegate { btnYeni.Left = header.ClientSize.Width - btnYeni.Width; btnYeni.Top = 12; btnExcel.Left = btnYeni.Left - btnExcel.Width - 8; btnExcel.Top = 0; btnGib.Left = btnExcel.Left - btnGib.Width - 8; btnGib.Top = 0; }; header.Resize += delegate { layoutHeader(); }; layoutHeader(); page.Controls.Add(header, 0, 0);
 
             TableLayoutPanel stats = new TableLayoutPanel(); stats.Dock = DockStyle.Fill; stats.Margin = new Padding(0, 0, 0, 12); stats.ColumnCount = 4; stats.RowCount = 1;
             for (int i = 0; i < 4; i++) stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             string[] st = { "TOPLAM KURUMSAL FİRMA", "GİB E-FATURA MÜKELLEFİ", "TOPLAM KURUMSAL ALACAK", "ORTALAMA VADE" };
             string[] sv = { kurumsal.Count + " Şirket", "—", "₺ 0,00", "— Gün" };
             string[] sn = { "Aktif kurumsal cari kayıtları", "Mükellefiyet alanı modelde yok", "Bakiye alanı modelde yok", "Vade alanı modelde yok" };
-            for (int i = 0; i < 4; i++) { RoundedPanel c = new RoundedPanel(); c.Dock = DockStyle.Fill; c.Margin = new Padding(i == 0 ? 0 : 5, 0, i == 3 ? 0 : 5, 0); c.Radius = 8; c.FillColor = Color.White; c.BorderColor = _border; c.BorderThickness = 1; Label a = new Label() { Text = st[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold), ForeColor = _muted, Location = new Point(14, 18) }; Label v = new Label() { Text = sv[i], AutoSize = true, Font = new Font("Segoe UI", 18F, FontStyle.Bold), ForeColor = _text, Location = new Point(14, 47) }; Label n = new Label() { Text = sn[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F), ForeColor = _muted, Location = new Point(14, 88) }; c.Controls.Add(a); c.Controls.Add(v); c.Controls.Add(n); stats.Controls.Add(c, i, 0); }
+            for (int i = 0; i < 4; i++) { RoundedPanel c = new RoundedPanel(); c.Dock = DockStyle.Fill; c.Margin = new Padding(i == 0 ? 0 : 5, 0, i == 3 ? 0 : 5, 0); c.Radius = 8; c.FillColor = Color.White; c.BorderColor = _border; c.BorderThickness = 1; Label a = new Label() { Text = st[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold), ForeColor = _muted, Location = new Point(14, 17) }; Label v = new Label() { Text = sv[i], AutoSize = true, Font = new Font("Segoe UI", 18F, FontStyle.Bold), ForeColor = _text, Location = new Point(14, 47) }; Label n = new Label() { Text = sn[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F), ForeColor = _muted, Location = new Point(14, 108) }; c.Controls.Add(a); c.Controls.Add(v); c.Controls.Add(n); stats.Controls.Add(c, i, 0); }
             page.Controls.Add(stats, 0, 1);
 
             RoundedPanel filterCard = new RoundedPanel(); filterCard.Dock = DockStyle.Fill; filterCard.Margin = new Padding(0, 0, 0, 12); filterCard.Radius = 7; filterCard.FillColor = Color.White; filterCard.BorderColor = _border; filterCard.BorderThickness = 1;
@@ -3584,7 +3615,7 @@ namespace UrunFaturaYonetimi
 
             Panel canvas = new Panel();
             canvas.Location = new Point(0, 0);
-            canvas.Size = new Size(Math.Max(1080, pnlContent.ClientSize.Width), 900);
+            canvas.Size = new Size(Math.Max(1080, pnlContent.ClientSize.Width), 1040);
             canvas.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             canvas.BackColor = Color.Transparent;
             pnlContent.Controls.Add(canvas);
@@ -3614,7 +3645,7 @@ namespace UrunFaturaYonetimi
             subtitle.AutoSize = true;
             subtitle.Font = new Font("Segoe UI", 9.5F);
             subtitle.ForeColor = _muted;
-            subtitle.Location = new Point(margin, 72);
+            subtitle.Location = new Point(margin, 89);
             canvas.Controls.Add(subtitle);
 
             Button btnYeniCari = MaviButon("+ Yeni Cari Hesap");
@@ -3653,8 +3684,8 @@ namespace UrunFaturaYonetimi
             int favoriSayisi = AppData.Cariler.Count(c => c.Favori);
 
             TableLayoutPanel kpis = new TableLayoutPanel();
-            kpis.Location = new Point(margin, 112);
-            kpis.Size = new Size(canvas.Width - margin * 2, 126);
+            kpis.Location = new Point(margin, 142);
+            kpis.Size = new Size(canvas.Width - margin * 2, 160);
             kpis.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             kpis.ColumnCount = 4;
             kpis.RowCount = 1;
@@ -3699,7 +3730,7 @@ namespace UrunFaturaYonetimi
                 cn.AutoSize = true;
                 cn.Font = new Font("Segoe UI", 8.5F);
                 cn.ForeColor = _muted;
-                cn.Location = new Point(14, 88);
+                cn.Location = new Point(14, 108);
                 card.Controls.Add(cn);
 
                 Label icon = new Label();
@@ -3968,8 +3999,8 @@ namespace UrunFaturaYonetimi
             page.ColumnCount = 1;
             page.RowCount = 4;
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 118F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 152F));
             page.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
             page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             pnlContent.Controls.Add(page);
@@ -3988,7 +4019,7 @@ namespace UrunFaturaYonetimi
             title.AutoSize = true;
             title.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
             title.ForeColor = _text;
-            title.Location = new Point(20, 14);
+            title.Location = new Point(20, 12);
             headerCard.Controls.Add(title);
 
             Label subtitle = new Label();
@@ -3996,7 +4027,7 @@ namespace UrunFaturaYonetimi
             subtitle.AutoSize = true;
             subtitle.Font = new Font("Segoe UI", 9.5F);
             subtitle.ForeColor = _muted;
-            subtitle.Location = new Point(22, 53);
+            subtitle.Location = new Point(22, 65);
             headerCard.Controls.Add(subtitle);
 
             Button btnYeniUrun = MaviButon("+ Yeni Ürün");
@@ -4070,7 +4101,7 @@ namespace UrunFaturaYonetimi
                 note.AutoSize = true;
                 note.Font = new Font("Segoe UI", 8.5F);
                 note.ForeColor = _muted;
-                note.Location = new Point(19, 78);
+                note.Location = new Point(19, 101);
                 card.Controls.Add(note);
 
                 stats.Controls.Add(card, i, 0);
@@ -4252,7 +4283,7 @@ namespace UrunFaturaYonetimi
             DataGridView grid = TemelGrid();
             grid.Location = new Point(28, 95);
             grid.Size = new Size(
-                Math.Max(900, pnlContent.ClientSize.Width - 48),
+                Math.Max(1050, pnlContent.ClientSize.Width - 56),
                 Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
             grid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -4271,8 +4302,9 @@ namespace UrunFaturaYonetimi
             detay.HeaderText = "İşlem";
             detay.Text = "Detayı Aç";
             detay.UseColumnTextForButtonValue = true;
-            detay.Width = 125;
+            detay.Width = 150;
             detay.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            detay.MinimumWidth = 140;
             detay.FlatStyle = FlatStyle.Flat;
             grid.Columns.Add(detay);
 
@@ -4728,8 +4760,8 @@ ORDER BY d.Id;", conn))
             page.ColumnCount = 1;
             page.RowCount = 3;
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F));
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 118F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 152F));
             page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             pnlContent.Controls.Add(page);
 
@@ -4747,7 +4779,7 @@ ORDER BY d.Id;", conn))
             title.AutoSize = true;
             title.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
             title.ForeColor = _text;
-            title.Location = new Point(20, 14);
+            title.Location = new Point(20, 12);
             header.Controls.Add(title);
 
             Label subtitle = new Label();
@@ -4755,7 +4787,7 @@ ORDER BY d.Id;", conn))
             subtitle.AutoSize = true;
             subtitle.Font = new Font("Segoe UI", 9.5F);
             subtitle.ForeColor = _muted;
-            subtitle.Location = new Point(22, 53);
+            subtitle.Location = new Point(22, 65);
             header.Controls.Add(subtitle);
 
             Button btnYeni = MaviButon("+ Yeni Kullanıcı");
@@ -4828,7 +4860,7 @@ ORDER BY d.Id;", conn))
                 note.AutoSize = true;
                 note.Font = new Font("Segoe UI", 8.5F);
                 note.ForeColor = _muted;
-                note.Location = new Point(19, 79);
+                note.Location = new Point(19, 101);
                 card.Controls.Add(note);
 
                 stats.Controls.Add(card, i, 0);
@@ -4889,7 +4921,7 @@ ORDER BY d.Id;", conn))
             // ÜST BAŞLIK
             RoundedPanel header = new RoundedPanel();
             header.Location = new Point(24, 22);
-            header.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 92);
+            header.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 120);
             header.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             header.Radius = 10;
             header.FillColor = Color.White;
@@ -4910,7 +4942,7 @@ ORDER BY d.Id;", conn))
             subtitle.AutoSize = true;
             subtitle.Font = new Font("Segoe UI", 9.5F);
             subtitle.ForeColor = _muted;
-            subtitle.Location = new Point(22, 52);
+            subtitle.Location = new Point(22, 69);
             header.Controls.Add(subtitle);
 
             Label active = new Label();
@@ -4923,8 +4955,8 @@ ORDER BY d.Id;", conn))
 
             // ÖZET KARTLARI
             TableLayoutPanel stats = new TableLayoutPanel();
-            stats.Location = new Point(24, 132);
-            stats.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 104);
+            stats.Location = new Point(24, 160);
+            stats.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 132);
             stats.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             stats.ColumnCount = 4;
             stats.RowCount = 1;
@@ -4975,8 +5007,8 @@ ORDER BY d.Id;", conn))
 
             // SOL: FİRMA PROFİLİ
             RoundedPanel firmaCard = new RoundedPanel();
-            firmaCard.Location = new Point(24, 254);
-            firmaCard.Size = new Size(Math.Max(610, page.ClientSize.Width - 388), 440);
+            firmaCard.Location = new Point(24, 312);
+            firmaCard.Size = new Size(Math.Max(610, page.ClientSize.Width - 388), 545);
             firmaCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             firmaCard.Radius = 10;
             firmaCard.FillColor = Color.White;
@@ -4997,47 +5029,47 @@ ORDER BY d.Id;", conn))
             firmaSub.AutoSize = true;
             firmaSub.Font = new Font("Segoe UI", 9F);
             firmaSub.ForeColor = _muted;
-            firmaSub.Location = new Point(23, 48);
+            firmaSub.Location = new Point(23, 58);
             firmaCard.Controls.Add(firmaSub);
 
-            firmaCard.Controls.Add(FormLabel("Firma Ünvanı", 24, 88));
+            firmaCard.Controls.Add(FormLabel("Firma Ünvanı", 24, 112));
             TextBox txtFirma = new TextBox();
-            txtFirma.Location = new Point(24, 115);
+            txtFirma.Location = new Point(24, 145);
             txtFirma.Size = new Size(520, 30);
             txtFirma.Font = new Font("Segoe UI", 10F);
             firmaCard.Controls.Add(txtFirma);
 
-            firmaCard.Controls.Add(FormLabel("Vergi / T.C. No", 24, 166));
+            firmaCard.Controls.Add(FormLabel("Vergi / T.C. No", 24, 190));
             TextBox txtVergi = new TextBox();
-            txtVergi.Location = new Point(24, 193);
+            txtVergi.Location = new Point(24, 223);
             txtVergi.Size = new Size(245, 30);
             txtVergi.Font = new Font("Segoe UI", 10F);
             firmaCard.Controls.Add(txtVergi);
 
-            firmaCard.Controls.Add(FormLabel("Vergi Dairesi", 299, 166));
+            firmaCard.Controls.Add(FormLabel("Vergi Dairesi", 299, 190));
             TextBox txtVergiDairesi = new TextBox();
-            txtVergiDairesi.Location = new Point(299, 193);
+            txtVergiDairesi.Location = new Point(299, 223);
             txtVergiDairesi.Size = new Size(245, 30);
             txtVergiDairesi.Font = new Font("Segoe UI", 10F);
             firmaCard.Controls.Add(txtVergiDairesi);
 
-            firmaCard.Controls.Add(FormLabel("E-Posta", 24, 244));
+            firmaCard.Controls.Add(FormLabel("E-Posta", 24, 268));
             TextBox txtMail = new TextBox();
-            txtMail.Location = new Point(24, 271);
+            txtMail.Location = new Point(24, 301);
             txtMail.Size = new Size(245, 30);
             txtMail.Font = new Font("Segoe UI", 10F);
             firmaCard.Controls.Add(txtMail);
 
-            firmaCard.Controls.Add(FormLabel("Telefon", 299, 244));
+            firmaCard.Controls.Add(FormLabel("Telefon", 299, 268));
             TextBox txtTelefon = new TextBox();
-            txtTelefon.Location = new Point(299, 271);
+            txtTelefon.Location = new Point(299, 301);
             txtTelefon.Size = new Size(245, 30);
             txtTelefon.Font = new Font("Segoe UI", 10F);
             firmaCard.Controls.Add(txtTelefon);
 
-            firmaCard.Controls.Add(FormLabel("Adres", 24, 322));
+            firmaCard.Controls.Add(FormLabel("Adres", 24, 346));
             TextBox txtAdres = new TextBox();
-            txtAdres.Location = new Point(24, 349);
+            txtAdres.Location = new Point(24, 379);
             txtAdres.Size = new Size(520, 58);
             txtAdres.Multiline = true;
             txtAdres.Font = new Font("Segoe UI", 10F);
@@ -5045,8 +5077,8 @@ ORDER BY d.Id;", conn))
 
             // SAĞ: UYGULAMA BİLGİLERİ
             RoundedPanel appCard = new RoundedPanel();
-            appCard.Location = new Point(Math.Max(674, page.ClientSize.Width - 340), 254);
-            appCard.Size = new Size(316, 440);
+            appCard.Location = new Point(Math.Max(674, page.ClientSize.Width - 340), 312);
+            appCard.Size = new Size(316, 545);
             appCard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             appCard.Radius = 10;
             appCard.FillColor = Color.White;
@@ -5067,7 +5099,7 @@ ORDER BY d.Id;", conn))
             appSub.AutoSize = true;
             appSub.Font = new Font("Segoe UI", 9F);
             appSub.ForeColor = _muted;
-            appSub.Location = new Point(23, 48);
+            appSub.Location = new Point(23, 58);
             appCard.Controls.Add(appSub);
 
             string[] bilgiBaslik = { "Oturum", "Görünüm", "Veri Durumu", "Çalışma Alanı" };
@@ -5086,7 +5118,7 @@ ORDER BY d.Id;", conn))
                 b.AutoSize = true;
                 b.Font = new Font("Segoe UI", 8.3F, FontStyle.Bold);
                 b.ForeColor = _muted;
-                b.Location = new Point(24, 94 + i * 72);
+                b.Location = new Point(24, 104 + i * 88);
                 appCard.Controls.Add(b);
 
                 Label d = new Label();
@@ -5094,16 +5126,16 @@ ORDER BY d.Id;", conn))
                 d.AutoSize = true;
                 d.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
                 d.ForeColor = i == 2 ? Color.FromArgb(22, 132, 75) : _text;
-                d.Location = new Point(23, 117 + i * 72);
+                d.Location = new Point(23, 132 + i * 88);
                 appCard.Controls.Add(d);
             }
 
             Label note = new Label();
             note.Text = "Firma bilgileri için projede kalıcı bir ayar tablosu bulunmadığından bu ekran mevcut veritabanı yapısına müdahale etmez.";
-            note.Size = new Size(266, 62);
+            note.Size = new Size(266, 65);
             note.Font = new Font("Segoe UI", 8.2F);
             note.ForeColor = _muted;
-            note.Location = new Point(24, 365);
+            note.Location = new Point(24, 468);
             appCard.Controls.Add(note);
 
             // YERLEŞİM
@@ -5111,7 +5143,7 @@ ORDER BY d.Id;", conn))
             {
                 header.Width = Math.Max(970, page.ClientSize.Width - 48);
                 active.Location = new Point(
-                    Math.Max(700, header.ClientSize.Width - active.Width - 22), 35);
+                    Math.Max(700, header.ClientSize.Width - active.Width - 22), 46);
 
                 stats.Width = Math.Max(970, page.ClientSize.Width - 48);
 
@@ -6287,13 +6319,109 @@ ORDER BY d.Id;", conn))
                     42)
                 : _page;
 
-            // Dashboard yeniden kurularak tüm kartlar aynı anda temalanır.
-            if (lblSayfaBaslik != null &&
-                lblSayfaBaslik.Text ==
-                    "Genel Bakış")
+            // Açık olan sayfa yerinde temalanır: filtre, seçim ve form verileri korunur.
+            TemaSayfaKontrolleriniUygula(pnlContent);
+        }
+
+        // Sayfa içindeki standart WinForms kart, yazı ve grid renklerini birlikte
+        // değiştirir. İlk renkler saklandığı için açık moda dönmek kayıpsızdır.
+        private void TemaSayfaKontrolleriniUygula(Control root)
+        {
+            if (root == null || root.IsDisposed) return;
+            Color zemin = Color.FromArgb(15, 23, 42);
+            Color kart = Color.FromArgb(30, 41, 59);
+            Color yazi = Color.FromArgb(235, 240, 246);
+            Color soluk = Color.FromArgb(168, 180, 196);
+            Color kenar = Color.FromArgb(54, 67, 85);
+            foreach (Control c in TemaKontrolleri(root))
             {
-                DashboardAc();
+                Color[] ilk;
+                if (!_temaOrijinalRenkleri.TryGetValue(c, out ilk))
+                {
+                    ilk = new Color[] { c.BackColor, c.ForeColor };
+                    _temaOrijinalRenkleri[c] = ilk;
+                }
+                if (!_isDarkMode)
+                {
+                    c.BackColor = ilk[0];
+                    c.ForeColor = ilk[1];
+                }
+                else
+                {
+                    Color bg = ilk[0];
+                    if (bg.A > 0 && bg.R >= 225 && bg.G >= 225 && bg.B >= 225)
+                        c.BackColor = c == root || c is TableLayoutPanel ||
+                            c is FlowLayoutPanel ? zemin : kart;
+                    else if (bg.A > 0 && bg.R >= 175 && bg.G >= 175 && bg.B >= 175)
+                        c.BackColor = kart;
+                    if (ilk[1].R < 150 && ilk[1].G < 150 && ilk[1].B < 150)
+                        c.ForeColor = yazi;
+                    else if (ilk[1].R < 190 && ilk[1].G < 190 && ilk[1].B < 190)
+                        c.ForeColor = soluk;
+                }
+                RoundedPanel rp = c as RoundedPanel;
+                if (rp != null)
+                {
+                    Color[] orijinalKart;
+                    if (!_temaKartRenkleri.TryGetValue(rp, out orijinalKart))
+                    {
+                        orijinalKart = new Color[] { rp.FillColor, rp.BorderColor };
+                        _temaKartRenkleri[rp] = orijinalKart;
+                    }
+                    if (_isDarkMode)
+                    {
+                        Color fill = orijinalKart[0];
+                        rp.FillColor = fill.R >= 225 && fill.G >= 225 &&
+                            fill.B >= 225 ? kart : fill;
+                        rp.BorderColor = kenar;
+                    }
+                    else
+                    {
+                        rp.FillColor = orijinalKart[0];
+                        rp.BorderColor = orijinalKart[1];
+                    }
+                    rp.Invalidate();
+                }
+                DataGridView dg = c as DataGridView;
+                if (dg != null)
+                {
+                    Color[] g;
+                    if (!_temaGridRenkleri.TryGetValue(dg, out g))
+                    {
+                        g = new Color[] {
+                            dg.BackgroundColor, dg.DefaultCellStyle.BackColor,
+                            dg.DefaultCellStyle.ForeColor,
+                            dg.ColumnHeadersDefaultCellStyle.BackColor,
+                            dg.ColumnHeadersDefaultCellStyle.ForeColor,
+                            dg.AlternatingRowsDefaultCellStyle.BackColor,
+                            dg.GridColor,
+                            dg.DefaultCellStyle.SelectionBackColor,
+                            dg.DefaultCellStyle.SelectionForeColor };
+                        _temaGridRenkleri[dg] = g;
+                    }
+                    dg.BackgroundColor = _isDarkMode ? zemin : g[0];
+                    dg.DefaultCellStyle.BackColor = _isDarkMode ? kart : g[1];
+                    dg.DefaultCellStyle.ForeColor = _isDarkMode ? yazi : g[2];
+                    dg.ColumnHeadersDefaultCellStyle.BackColor = _isDarkMode ? zemin : g[3];
+                    dg.ColumnHeadersDefaultCellStyle.ForeColor = _isDarkMode ? yazi : g[4];
+                    dg.AlternatingRowsDefaultCellStyle.BackColor = _isDarkMode ?
+                        Color.FromArgb(36, 49, 68) : g[5];
+                    dg.GridColor = _isDarkMode ? kenar : g[6];
+                    dg.DefaultCellStyle.SelectionBackColor = _isDarkMode ?
+                        Color.FromArgb(26, 86, 155) : g[7];
+                    dg.DefaultCellStyle.SelectionForeColor = _isDarkMode ? yazi : g[8];
+                    dg.EnableHeadersVisualStyles = false;
+                    dg.Invalidate();
+                }
             }
+        }
+
+        private IEnumerable<Control> TemaKontrolleri(Control root)
+        {
+            yield return root;
+            foreach (Control child in root.Controls)
+                foreach (Control nested in TemaKontrolleri(child))
+                    yield return nested;
         }
 
         private class RoundedPanel :

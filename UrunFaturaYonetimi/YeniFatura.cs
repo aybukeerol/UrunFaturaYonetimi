@@ -79,64 +79,41 @@ namespace UrunFaturaYonetimi
             AutoScaleMode =
                 AutoScaleMode.None;
 
-            Panel header =
-                UstBaslikOlustur();
+            Panel header = UstBaslikOlustur();
 
-            Controls.Add(
-                header);
+            TableLayoutPanel anaLayout = new TableLayoutPanel();
+            anaLayout.Dock = DockStyle.Fill;
+            anaLayout.Margin = Padding.Empty;
+            anaLayout.Padding = Padding.Empty;
+            anaLayout.ColumnCount = 2;
+            anaLayout.RowCount = 1;
+            anaLayout.BackColor = Color.FromArgb(225, 230, 236);
+            anaLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52F));
+            anaLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F));
+            anaLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            TableLayoutPanel anaLayout =
-                new TableLayoutPanel();
+            Panel sol = SolTarafiOlustur();
+            Panel sag = SagTarafiOlustur();
+            sol.Margin = Padding.Empty;
+            sag.Margin = Padding.Empty;
+            anaLayout.Controls.Add(sol, 0, 0);
+            anaLayout.Controls.Add(sag, 1, 0);
 
-            anaLayout.Dock =
-                DockStyle.Fill;
-
-            anaLayout.ColumnCount =
-                2;
-
-            anaLayout.RowCount =
-                1;
-
-            anaLayout.BackColor =
-                Color.FromArgb(225, 230, 236);
-
-            // Sol formu biraz daha geniş tutuyoruz.
-            // Sağdaki e-Fatura önizlemesi aynen korunuyor.
-            anaLayout.ColumnStyles.Add(
-                new ColumnStyle(
-                    SizeType.Percent,
-                    52F));
-
-            anaLayout.ColumnStyles.Add(
-                new ColumnStyle(
-                    SizeType.Percent,
-                    48F));
-
-            anaLayout.RowStyles.Add(
-                new RowStyle(
-                    SizeType.Percent,
-                    100F));
-
-            Panel sol =
-                SolTarafiOlustur();
-
-            Panel sag =
-                SagTarafiOlustur();
-
-            anaLayout.Controls.Add(
-                sol,
-                0,
-                0);
-
-            anaLayout.Controls.Add(
-                sag,
-                1,
-                0);
-
-            Controls.Add(
-                anaLayout);
-
-            anaLayout.BringToFront();
+            // Başlık ve içerik ayrı satırlarda: içerik başlığın altına kayamaz.
+            TableLayoutPanel formLayout = new TableLayoutPanel();
+            formLayout.Dock = DockStyle.Fill;
+            formLayout.Margin = Padding.Empty;
+            formLayout.Padding = Padding.Empty;
+            formLayout.ColumnCount = 1;
+            formLayout.RowCount = 2;
+            formLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            formLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
+            formLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            header.Dock = DockStyle.Fill;
+            header.Margin = Padding.Empty;
+            formLayout.Controls.Add(header, 0, 0);
+            formLayout.Controls.Add(anaLayout, 0, 1);
+            Controls.Add(formLayout);
 
             Shown +=
                 delegate
@@ -347,7 +324,7 @@ namespace UrunFaturaYonetimi
                 new Point(15, 15);
 
             favoriCard.Size =
-                new Size(500, 180);
+                new Size(500, 205);
 
             favoriCard.Anchor =
                 AnchorStyles.Top |
@@ -380,6 +357,7 @@ namespace UrunFaturaYonetimi
 
             pnlFavoriCariler.AutoScroll =
                 true;
+            pnlFavoriCariler.WrapContents = false;
 
             favoriCard.Controls.Add(
                 pnlFavoriCariler);
@@ -397,13 +375,14 @@ namespace UrunFaturaYonetimi
                 new FlowLayoutPanel();
 
             pnlFavoriUrunler.Location =
-                new Point(18, 140);
+                new Point(18, 154);
 
             pnlFavoriUrunler.Size =
-                new Size(460, 38);
+                new Size(460, 42);
 
             pnlFavoriUrunler.AutoScroll =
                 true;
+            pnlFavoriUrunler.WrapContents = false;
 
             favoriCard.Controls.Add(
                 pnlFavoriUrunler);
@@ -419,7 +398,7 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             aliciCard.Location =
-                new Point(15, 210);
+                new Point(15, 235);
 
             aliciCard.Size =
                 new Size(500, 205);
@@ -548,7 +527,7 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             faturaCard.Location =
-                new Point(15, 430);
+                new Point(15, 455);
 
             faturaCard.Size =
                 new Size(500, 270);
@@ -727,7 +706,7 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             kalemCard.Location =
-                new Point(15, 715);
+                new Point(15, 740);
 
             kalemCard.Size =
                 new Size(500, 365);
@@ -810,7 +789,7 @@ namespace UrunFaturaYonetimi
                 new Panel();
 
             buttons.Location =
-                new Point(15, 1095);
+                new Point(15, 1120);
 
             buttons.Size =
                 new Size(500, 80);
@@ -1199,7 +1178,7 @@ namespace UrunFaturaYonetimi
                 DataGridViewEditMode.EditOnEnter;
 
             grid.ColumnHeadersHeight =
-                38;
+                42;
 
             grid.RowTemplate.Height =
                 32;
@@ -1434,22 +1413,9 @@ namespace UrunFaturaYonetimi
             background.Controls.Add(
                 paper);
 
-            background.Resize +=
-                delegate
-                {
-                    if (background.Width >
-                        paper.Width + 40)
-                    {
-                        paper.Left =
-                            (background.Width -
-                             paper.Width) / 2;
-                    }
-                    else
-                    {
-                        paper.Left =
-                            20;
-                    }
-                };
+            // Önizleme paneli ekran genişliğine göre daralır; sağ kenarı kesilmez.
+            // İç kontroller oluşturulduktan sonra Shown/Resize sırasında hizalanır.
+            background.Resize += delegate { OnizlemeYerlesiminiGuncelle(); };
 
             Label title =
                 new Label();
@@ -1482,7 +1448,7 @@ namespace UrunFaturaYonetimi
                 "ŞİRKET ÜNVANI";
 
             firma.Size =
-                new Size(300, 25);
+                new Size(300, 32);
 
             firma.TextAlign =
                 ContentAlignment.MiddleRight;
@@ -1508,7 +1474,7 @@ namespace UrunFaturaYonetimi
                 "Vergi Dairesi / Vergi No";
 
             firmaBilgi.Size =
-                new Size(300, 65);
+                new Size(300, 82);
 
             firmaBilgi.TextAlign =
                 ContentAlignment.TopRight;
@@ -1517,7 +1483,7 @@ namespace UrunFaturaYonetimi
                 Color.Gray;
 
             firmaBilgi.Location =
-                new Point(420, 58);
+                new Point(420, 66);
 
             paper.Controls.Add(
                 firmaBilgi);
@@ -1592,22 +1558,22 @@ namespace UrunFaturaYonetimi
                 new Point(440, 155);
 
             bilgi.Size =
-                new Size(280, 125);
+                new Size(280, 132);
 
             bilgi.BackColor =
                 Color.FromArgb(247, 249, 251);
 
             prvFaturaNo =
-                PreviewLabel(10, 10);
+                PreviewLabel(10, 8);
 
             prvTarih =
-                PreviewLabel(10, 37);
+                PreviewLabel(10, 38);
 
             prvSenaryo =
-                PreviewLabel(10, 64);
+                PreviewLabel(10, 68);
 
             prvTip =
-                PreviewLabel(10, 91);
+                PreviewLabel(10, 98);
 
             bilgi.Controls.Add(
                 prvFaturaNo);
@@ -1696,10 +1662,10 @@ namespace UrunFaturaYonetimi
                 new Panel();
 
             toplam.Location =
-                new Point(385, 655);
+                new Point(385, 650);
 
             toplam.Size =
-                new Size(345, 155);
+                new Size(345, 165);
 
             toplam.BackColor =
                 Color.FromArgb(247, 249, 251);
@@ -1740,7 +1706,72 @@ namespace UrunFaturaYonetimi
             paper.Controls.Add(
                 toplam);
 
+            background.HandleCreated += delegate
+            {
+                BeginInvoke(new Action(OnizlemeYerlesiminiGuncelle));
+            };
             return background;
+        }
+
+        // Önizleme kâğıdının yatay taşmasını engeller. Veri alanları değişmez.
+        private void OnizlemeYerlesiminiGuncelle()
+        {
+            if (sagBackground == null || previewPaper == null || previewPaper.IsDisposed)
+                return;
+            Panel paper = previewPaper;
+            int width = Math.Max(420, Math.Min(760, sagBackground.ClientSize.Width - 36));
+            paper.Width = width;
+            paper.Left = Math.Max(12, (sagBackground.ClientSize.Width - width) / 2);
+            int inner = width - 60;
+            foreach (Control control in paper.Controls)
+            {
+                if (control is DataGridView)
+                {
+                    control.Left = 30;
+                    control.Width = inner;
+                }
+                else if (control is Panel && control.Height == 1)
+                {
+                    control.Left = 30;
+                    control.Width = inner;
+                }
+            }
+            // Üst şirket bilgileri ve sağ fatura bilgi kutusu
+            // dar ekranlarda sol alıcı bilgileriyle çakışmaz.
+            foreach (Control control in paper.Controls)
+            {
+                Label label = control as Label;
+                if (label != null && label.Text == "ŞİRKET ÜNVANI")
+                {
+                    label.Width = Math.Max(145, (width - 85) / 2);
+                    label.Left = width - label.Width - 25;
+                    label.AutoEllipsis = true;
+                }
+                else if (label != null && label.Text.StartsWith("Firma adresi"))
+                {
+                    label.Width = Math.Max(145, (width - 85) / 2);
+                    label.Left = width - label.Width - 25;
+                    label.AutoEllipsis = true;
+                }
+                else if (control is Panel && (control.Height == 125 || control.Height == 132))
+                {
+                    control.Width = Math.Max(175, (width - 85) / 2);
+                    control.Left = width - control.Width - 25;
+                    control.Top = 155;
+                    control.Height = 132;
+                    foreach (Control child in control.Controls)
+                        child.Width = control.Width - 18;
+                }
+                else if (control is Panel && control.Height == 165)
+                {
+                    control.Width = Math.Min(400, inner);
+                    control.Left = width - control.Width - 30;
+                    foreach (Control child in control.Controls)
+                        child.Width = control.Width - 20;
+                }
+            }
+            if (prvAlici != null) { prvAlici.Width = Math.Max(160, (width - 95) / 2); prvAlici.AutoEllipsis = true; }
+            if (prvKimlik != null) { prvKimlik.Width = Math.Max(160, (width - 95) / 2); prvKimlik.AutoEllipsis = true; }
         }
 
         // =========================================================
@@ -2278,7 +2309,9 @@ namespace UrunFaturaYonetimi
                 new Point(x, y);
 
             label.Size =
-                new Size(255, 23);
+                new Size(255, 29);
+
+            label.AutoEllipsis = true;
 
             return label;
         }
@@ -2294,7 +2327,7 @@ namespace UrunFaturaYonetimi
                 new Point(x, y);
 
             label.Size =
-                new Size(320, 30);
+                new Size(320, 42);
 
             label.TextAlign =
                 ContentAlignment.MiddleRight;
