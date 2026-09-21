@@ -8,6 +8,7 @@ using System.Drawing.Printing;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Microsoft.Data.SqlClient;
 using UrunFaturaYonetimi.Business.Abstract;
 
 namespace UrunFaturaYonetimi
@@ -42,6 +43,15 @@ namespace UrunFaturaYonetimi
         private TextBox txtAiMessage;
         private Button btnAiFloating;
         private bool _aiPanelOpen;
+
+        // AI fatura hazırlama konuşma durumu.
+        // Kullanıcıdan yalnızca veritabanında bulunmayan zorunlu bilgi istenir.
+        private CariKaydi _aiBekleyenCari;
+        private UrunKaydi _aiBekleyenUrun;
+        private decimal _aiBekleyenMiktar;
+        private bool _aiFaturaHazirlamaAktif;
+        private bool _aiKalemEklemeAktif;
+        private YeniFaturaForm _aiSonFaturaFormu;
 
         private readonly Color _sidebar = Color.FromArgb(43, 48, 52);
         private readonly Color _sidebarHover = Color.FromArgb(55, 61, 66);
@@ -2079,11 +2089,11 @@ namespace UrunFaturaYonetimi
 
             Button refresh =
                 SmallActionButton("\uE72C", "Verileri Yenile", false);
-            refresh.Size = new Size(132, 32);
+            refresh.Size = new Size(245, 40);
 
             Button quickInvoice =
                 SmallActionButton("\uE710", "Hızlı e-Fatura Düzenle", true);
-            quickInvoice.Size = new Size(178, 32);
+            quickInvoice.Size = new Size(335, 40);
 
             statusBar.Controls.Add(refresh);
             statusBar.Controls.Add(quickInvoice);
@@ -2157,11 +2167,11 @@ namespace UrunFaturaYonetimi
             helloText.Font =
                 new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             helloText.ForeColor = CurrentMutedText();
-            helloText.Location = new Point(35, 145);
+            helloText.Location = new Point(35, 151);
             welcome.Controls.Add(helloText);
 
             RoundedPanel searchPreview = new RoundedPanel();
-            searchPreview.Size = new Size(420, 220);
+            searchPreview.Size = new Size(570, 236);
             searchPreview.Anchor =
                 AnchorStyles.Top |
                 AnchorStyles.Right;
@@ -2178,7 +2188,7 @@ namespace UrunFaturaYonetimi
             miniSearchIcon.Image =
                 IconBitmap("\uE721", 9F, _primary, 16, Color.Transparent);
             miniSearchIcon.Size = new Size(16, 16);
-            miniSearchIcon.Location = new Point(10, 9);
+            miniSearchIcon.Location = new Point(12, 11);
             miniSearchIcon.SizeMode = PictureBoxSizeMode.CenterImage;
             searchPreview.Controls.Add(miniSearchIcon);
 
@@ -2188,7 +2198,7 @@ namespace UrunFaturaYonetimi
             previewTitle.Font =
                 new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             previewTitle.ForeColor = CurrentPrimaryText();
-            previewTitle.Location = new Point(30, 9);
+            previewTitle.Location = new Point(34, 11);
             searchPreview.Controls.Add(previewTitle);
 
             Label matches = new Label();
@@ -2201,21 +2211,21 @@ namespace UrunFaturaYonetimi
             searchPreview.Controls.Add(matches);
 
             AddPreviewRow(
-                searchPreview, 45, "CARİ",
+                searchPreview, 50, "CARİ",
                 AppData.Cariler.Count > 0
                     ? AppData.Cariler[0].CariAdi
                     : "Anadolu Lojistik",
                 "\uE77B");
 
             AddPreviewRow(
-                searchPreview, 98, "ÜRÜN",
+                searchPreview, 111, "ÜRÜN",
                 AppData.Urunler.Count > 0
                     ? AppData.Urunler[0].UrunAdi
                     : "ERP Yazılım Lisansı V3",
                 "\uE7C3");
 
             AddPreviewRow(
-                searchPreview, 151, "FATURA",
+                searchPreview, 172, "FATURA",
                 AppData.Faturalar.Count > 0
                     ? AppData.Faturalar[0].FaturaNo
                     : "FTR-2025-001",
@@ -2227,12 +2237,12 @@ namespace UrunFaturaYonetimi
                 adminBadge.Top = hello.Top + 9;
 
                 searchPreview.Left =
-                    welcome.ClientSize.Width - searchPreview.Width - 20;
-                searchPreview.Top = 34;
+                    welcome.ClientSize.Width - searchPreview.Width - 24;
+                searchPreview.Top = 28;
 
                 matches.Left =
                     searchPreview.ClientSize.Width - matches.Width - 10;
-                matches.Top = 9;
+                matches.Top = 12;
             };
 
             welcome.Resize += delegate { layoutWelcome(); };
@@ -2352,7 +2362,7 @@ namespace UrunFaturaYonetimi
 
             Button arrange =
                 SmallActionButton("\uE8FD", "Sırala & Düzenle", false);
-            arrange.Size = new Size(138, 32);
+            arrange.Size = new Size(270, 40);
             arrange.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             quick.Controls.Add(arrange);
 
@@ -2406,7 +2416,7 @@ namespace UrunFaturaYonetimi
             Action layoutQuick = delegate
             {
                 arrange.Left =
-                    quick.ClientSize.Width - arrange.Width - 16;
+                    quick.ClientSize.Width - arrange.Width - 20;
                 arrange.Top = 22;
                 favs.Width =
                     quick.ClientSize.Width - 32;
@@ -2477,7 +2487,7 @@ namespace UrunFaturaYonetimi
             invoiceActions.Margin = new Padding(0);
 
             TextBox filter = new TextBox();
-            filter.Size = new Size(190, 32);
+            filter.Size = new Size(300, 38);
             filter.BorderStyle = BorderStyle.FixedSingle;
             filter.BackColor =
                 _isDarkMode
@@ -2491,12 +2501,12 @@ namespace UrunFaturaYonetimi
 
             Button excel =
                 SmallActionButton("\uE896", "Excel", false);
-            excel.Size = new Size(82, 32);
+            excel.Size = new Size(142, 38);
             excel.Margin = new Padding(0, 0, 8, 0);
 
             Button print =
                 SmallActionButton("\uE749", "Yazdır", false);
-            print.Size = new Size(82, 32);
+            print.Size = new Size(142, 38);
             print.Margin = new Padding(0);
 
             invoiceActions.Controls.Add(filter);
@@ -2563,12 +2573,13 @@ namespace UrunFaturaYonetimi
             viewCol.HeaderText = "İşlem";
             viewCol.Text = "Aç";
             viewCol.UseColumnTextForButtonValue = true;
-            viewCol.Width = 66;
+            viewCol.Width = 105;
             viewCol.AutoSizeMode =
                 DataGridViewAutoSizeColumnMode.None;
             viewCol.FlatStyle = FlatStyle.Flat;
             viewCol.DefaultCellStyle.Alignment =
                 DataGridViewContentAlignment.MiddleCenter;
+            viewCol.DefaultCellStyle.Padding = new Padding(3);
             grid.Columns.Add(viewCol);
 
             DataGridViewButtonColumn downloadCol =
@@ -2577,12 +2588,13 @@ namespace UrunFaturaYonetimi
             downloadCol.HeaderText = "";
             downloadCol.Text = "İndir";
             downloadCol.UseColumnTextForButtonValue = true;
-            downloadCol.Width = 66;
+            downloadCol.Width = 105;
             downloadCol.AutoSizeMode =
                 DataGridViewAutoSizeColumnMode.None;
             downloadCol.FlatStyle = FlatStyle.Flat;
             downloadCol.DefaultCellStyle.Alignment =
                 DataGridViewContentAlignment.MiddleCenter;
+            downloadCol.DefaultCellStyle.Padding = new Padding(3);
             grid.Columns.Add(downloadCol);
 
             foreach (FaturaKaydi fatura in AppData.Faturalar)
@@ -2729,8 +2741,8 @@ namespace UrunFaturaYonetimi
 
                 invoiceActions.Left =
                     invoiceCard.ClientSize.Width -
-                    invoiceActions.Width - 15;
-                invoiceActions.Top = 22;
+                    invoiceActions.Width - 20;
+                invoiceActions.Top = 17;
 
                 grid.Width =
                     invoiceCard.ClientSize.Width - 40;
@@ -3040,90 +3052,467 @@ namespace UrunFaturaYonetimi
 
         private void MusterilerAc()
         {
-            SayfayiTemizle(
-                "Müşteriler");
+            SayfayiTemizle("Müşteriler");
 
-            Label baslik =
-                SayfaListeBasligi(
-                    "Bireysel Müşteriler");
+            pnlContent.SuspendLayout();
+            pnlContent.AutoScroll = false;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            pnlContent.Controls.Add(
-                baslik);
+            // Bu ekran TableLayoutPanel ile kurulmuştur. Sabit koordinatlarla
+            // birbirinin üstüne binen kontroller yerine satırlar birbirinden
+            // tamamen ayrıdır ve pencere büyüyüp küçüldükçe düzen korunur.
+            TableLayoutPanel page = new TableLayoutPanel();
+            page.Dock = DockStyle.Fill;
+            page.Margin = new Padding(0);
+            page.Padding = new Padding(24, 24, 24, 16);
+            page.BackColor = Color.FromArgb(246, 249, 253);
+            page.ColumnCount = 1;
+            page.RowCount = 5;
+            page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 78F));
+            page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+            pnlContent.Controls.Add(page);
 
-            DataGridView grid =
-                TemelGrid();
+            // ========================= BAŞLIK KARTI =========================
+            RoundedPanel headerCard = new RoundedPanel();
+            headerCard.Dock = DockStyle.Fill;
+            headerCard.Margin = new Padding(0, 0, 0, 14);
+            headerCard.Radius = 10;
+            headerCard.FillColor = Color.White;
+            headerCard.BorderColor = Color.FromArgb(232, 237, 243);
+            headerCard.BorderThickness = 1;
 
-            grid.Location = new Point(24, 92);
+            TableLayoutPanel header = new TableLayoutPanel();
+            header.Dock = DockStyle.Fill;
+            header.BackColor = Color.Transparent;
+            header.Padding = new Padding(22, 16, 18, 12);
+            header.ColumnCount = 2;
+            header.RowCount = 1;
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58F));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42F));
+            header.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            headerCard.Controls.Add(header);
 
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
+            Panel titleArea = new Panel();
+            titleArea.Dock = DockStyle.Fill;
+            titleArea.BackColor = Color.Transparent;
 
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
+            Label title = new Label();
+            title.Text = "♙  Bireysel Müşteriler";
+            title.AutoSize = true;
+            title.Font = new Font("Segoe UI", 19F, FontStyle.Bold, GraphicsUnit.Point);
+            title.ForeColor = Color.FromArgb(20, 25, 31);
+            title.Location = new Point(0, 0);
+            titleArea.Controls.Add(title);
 
-            KolonEkle(
-                grid,
-                "Kod",
-                "Cari Kodu");
+            Label subtitle = new Label();
+            subtitle.Text = "Kayıtlı bireysel alıcılar, T.C. Kimlik doğrulamaları ve müşteri iletişim kartları";
+            subtitle.AutoSize = true;
+            subtitle.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            subtitle.ForeColor = Color.FromArgb(112, 123, 139);
+            subtitle.Location = new Point(2, 42);
+            titleArea.Controls.Add(subtitle);
+            header.Controls.Add(titleArea, 0, 0);
 
-            KolonEkle(
-                grid,
-                "Ad",
-                "Ad Soyad");
+            FlowLayoutPanel headerButtons = new FlowLayoutPanel();
+            headerButtons.Dock = DockStyle.Fill;
+            headerButtons.FlowDirection = FlowDirection.RightToLeft;
+            headerButtons.WrapContents = false;
+            headerButtons.Padding = new Padding(0, 12, 0, 0);
+            headerButtons.BackColor = Color.Transparent;
 
-            KolonEkle(
-                grid,
-                "Kimlik",
-                "T.C. Kimlik No");
+            Button btnYeni = new Button();
+            btnYeni.Text = "+  Yeni Bireysel Müşteri";
+            btnYeni.Size = new Size(196, 42);
+            btnYeni.Margin = new Padding(8, 0, 0, 0);
+            btnYeni.FlatStyle = FlatStyle.Flat;
+            btnYeni.FlatAppearance.BorderSize = 0;
+            btnYeni.BackColor = Color.FromArgb(18, 93, 203);
+            btnYeni.ForeColor = Color.White;
+            btnYeni.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            btnYeni.Cursor = Cursors.Hand;
 
-            KolonEkle(
-                grid,
-                "Telefon",
-                "Telefon");
+            Button btnYazdir = new Button();
+            btnYazdir.Text = "▣  Yazdır";
+            btnYazdir.Size = new Size(96, 42);
+            btnYazdir.Margin = new Padding(8, 0, 0, 0);
+            btnYazdir.FlatStyle = FlatStyle.Flat;
+            btnYazdir.FlatAppearance.BorderSize = 0;
+            btnYazdir.BackColor = Color.FromArgb(245, 247, 250);
+            btnYazdir.ForeColor = Color.FromArgb(45, 53, 64);
+            btnYazdir.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            btnYazdir.Cursor = Cursors.Hand;
 
-            KolonEkle(
-                grid,
-                "Email",
-                "E-Posta");
+            Button btnExcel = new Button();
+            btnExcel.Text = "⇩  Dışa Aktar";
+            btnExcel.Size = new Size(128, 42);
+            btnExcel.Margin = new Padding(8, 0, 0, 0);
+            btnExcel.FlatStyle = FlatStyle.Flat;
+            btnExcel.FlatAppearance.BorderSize = 0;
+            btnExcel.BackColor = Color.FromArgb(245, 247, 250);
+            btnExcel.ForeColor = Color.FromArgb(45, 53, 64);
+            btnExcel.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            btnExcel.Cursor = Cursors.Hand;
 
-            KolonEkle(
-                grid,
-                "Sehir",
-                "Şehir");
+            headerButtons.Controls.Add(btnYeni);
+            headerButtons.Controls.Add(btnYazdir);
+            headerButtons.Controls.Add(btnExcel);
+            header.Controls.Add(headerButtons, 1, 0);
+            page.Controls.Add(headerCard, 0, 0);
 
-            foreach (
-                CariKaydi cari
-                in AppData.Cariler)
+            var bireysel = AppData.Cariler
+                .Where(c => c.Tip == "Müşteri" && string.IsNullOrWhiteSpace(c.FirmaAdi))
+                .ToList();
+
+            // ========================= ÖZET KARTLARI =========================
+            TableLayoutPanel stats = new TableLayoutPanel();
+            stats.Dock = DockStyle.Fill;
+            stats.Margin = new Padding(0, 0, 0, 14);
+            stats.ColumnCount = 3;
+            stats.RowCount = 1;
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.334F));
+
+            string[] statTitles = { "TOPLAM BİREYSEL MÜŞTERİ", "AKTİF BAKİYE / AÇIK HESAP", "GİB E-ARŞİV / TCKN DOĞRULANMIŞ" };
+            string[] statValues = { bireysel.Count + " Kayıt", "₺ 0,00", "%98,5" };
+            string[] statNotes = { "Aktif çalışan portföy hacmi", "Bakiye alanı mevcut modelde yok", "Kimlik doğrulama görünümü" };
+            string[] statIcons = { "◯", "▥", "♢" };
+
+            for (int i = 0; i < 3; i++)
             {
-                if (cari.Tip !=
-                    "Müşteri")
-                {
-                    continue;
-                }
+                RoundedPanel card = new RoundedPanel();
+                card.Dock = DockStyle.Fill;
+                card.Margin = i == 0 ? new Padding(0, 0, 6, 0) : (i == 1 ? new Padding(3, 0, 3, 0) : new Padding(6, 0, 0, 0));
+                card.Radius = 10;
+                card.FillColor = Color.White;
+                card.BorderColor = Color.FromArgb(232, 237, 243);
+                card.BorderThickness = 1;
 
-                if (!string.IsNullOrWhiteSpace(
-                    cari.FirmaAdi))
-                {
-                    continue;
-                }
+                Label cap = new Label();
+                cap.Text = statTitles[i];
+                cap.AutoSize = true;
+                cap.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+                cap.ForeColor = Color.FromArgb(105, 116, 132);
+                cap.Location = new Point(20, 18);
+                card.Controls.Add(cap);
 
-                grid.Rows.Add(
-                    cari.CariKodu,
-                    cari.CariAdi,
-                    cari.KimlikNo,
-                    cari.Telefon,
-                    cari.Email,
-                    cari.Sehir);
+                Label value = new Label();
+                value.Text = statValues[i];
+                value.AutoSize = true;
+                value.Font = new Font("Segoe UI", 20F, FontStyle.Bold, GraphicsUnit.Point);
+                value.ForeColor = Color.FromArgb(23, 28, 35);
+                value.Location = new Point(20, 44);
+                card.Controls.Add(value);
+
+                Label note = new Label();
+                note.Text = statNotes[i];
+                note.AutoSize = true;
+                note.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+                note.ForeColor = Color.FromArgb(125, 136, 151);
+                note.Location = new Point(21, 88);
+                card.Controls.Add(note);
+
+                Label icon = new Label();
+                icon.Text = statIcons[i];
+                icon.AutoSize = false;
+                icon.Size = new Size(60, 60);
+                icon.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                icon.Location = new Point(card.Width - 78, 30);
+                icon.Font = new Font("Segoe UI Symbol", 26F, FontStyle.Bold, GraphicsUnit.Point);
+                icon.TextAlign = ContentAlignment.MiddleCenter;
+                icon.ForeColor = Color.FromArgb(17, 91, 199);
+                icon.BackColor = Color.FromArgb(241, 246, 253);
+                card.Controls.Add(icon);
+                card.Resize += delegate { icon.Location = new Point(card.ClientSize.Width - 78, 30); };
+
+                stats.Controls.Add(card, i, 0);
             }
+            page.Controls.Add(stats, 0, 1);
 
-            pnlContent.Controls.Add(
-                grid);
+            // ========================= FİLTRELER =========================
+            RoundedPanel filterCard = new RoundedPanel();
+            filterCard.Dock = DockStyle.Fill;
+            filterCard.Margin = new Padding(0, 0, 0, 14);
+            filterCard.Radius = 10;
+            filterCard.FillColor = Color.White;
+            filterCard.BorderColor = Color.FromArgb(232, 237, 243);
+            filterCard.BorderThickness = 1;
+
+            TableLayoutPanel filters = new TableLayoutPanel();
+            filters.Dock = DockStyle.Fill;
+            filters.Padding = new Padding(14, 13, 14, 12);
+            filters.ColumnCount = 5;
+            filters.RowCount = 1;
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 37F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 21F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24F));
+            filterCard.Controls.Add(filters);
+
+            TextBox txtAra = new TextBox();
+            txtAra.Dock = DockStyle.Fill;
+            txtAra.Margin = new Padding(0, 1, 8, 1);
+            txtAra.Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+            txtAra.BorderStyle = BorderStyle.FixedSingle;
+            txtAra.ForeColor = Color.FromArgb(85, 96, 111);
+            txtAra.Text = "Ad soyad, TCKN veya telefon...";
+            filters.Controls.Add(txtAra, 0, 0);
+
+            ComboBox cmbSehir = new ComboBox();
+            cmbSehir.Dock = DockStyle.Fill;
+            cmbSehir.Margin = new Padding(0, 1, 8, 1);
+            cmbSehir.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbSehir.FlatStyle = FlatStyle.Standard;
+            cmbSehir.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            cmbSehir.Items.Add("Şehir: Tümü");
+            foreach (string s in bireysel.Where(x => !string.IsNullOrWhiteSpace(x.Sehir)).Select(x => x.Sehir).Distinct().OrderBy(x => x))
+                cmbSehir.Items.Add(s);
+            cmbSehir.SelectedIndex = 0;
+            filters.Controls.Add(cmbSehir, 1, 0);
+
+            ComboBox cmbBakiye = new ComboBox();
+            cmbBakiye.Dock = DockStyle.Fill;
+            cmbBakiye.Margin = new Padding(0, 1, 8, 1);
+            cmbBakiye.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbBakiye.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            cmbBakiye.Items.AddRange(new object[] { "Bakiye Durumu: Tümü", "Borçlu", "Dengede" });
+            cmbBakiye.SelectedIndex = 0;
+            filters.Controls.Add(cmbBakiye, 2, 0);
+
+            Button btnSifirla = new Button();
+            btnSifirla.Dock = DockStyle.Fill;
+            btnSifirla.Margin = new Padding(0, 0, 8, 0);
+            btnSifirla.Text = "Filtreleri Sıfırla";
+            btnSifirla.FlatStyle = FlatStyle.Flat;
+            btnSifirla.FlatAppearance.BorderSize = 0;
+            btnSifirla.BackColor = Color.FromArgb(235, 239, 244);
+            btnSifirla.ForeColor = Color.FromArgb(55, 64, 76);
+            btnSifirla.Font = new Font("Segoe UI", 8.8F, FontStyle.Bold, GraphicsUnit.Point);
+            filters.Controls.Add(btnSifirla, 3, 0);
+
+            Label secim = new Label();
+            secim.Text = "Seçili: 0     □   ✉   ⇩";
+            secim.Dock = DockStyle.Fill;
+            secim.TextAlign = ContentAlignment.MiddleRight;
+            secim.Font = new Font("Segoe UI Symbol", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            secim.ForeColor = Color.FromArgb(83, 94, 109);
+            filters.Controls.Add(secim, 4, 0);
+            page.Controls.Add(filterCard, 0, 2);
+
+            // ========================= TABLO =========================
+            RoundedPanel tableCard = new RoundedPanel();
+            tableCard.Dock = DockStyle.Fill;
+            tableCard.Margin = new Padding(0);
+            tableCard.Radius = 10;
+            tableCard.FillColor = Color.White;
+            tableCard.BorderColor = Color.FromArgb(232, 237, 243);
+            tableCard.BorderThickness = 1;
+
+            TableLayoutPanel tableLayout = new TableLayoutPanel();
+            tableLayout.Dock = DockStyle.Fill;
+            tableLayout.Margin = new Padding(0);
+            tableLayout.Padding = new Padding(0);
+            tableLayout.ColumnCount = 1;
+            tableLayout.RowCount = 2;
+            tableLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            tableLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            tableCard.Controls.Add(tableLayout);
+
+            DataGridView grid = new DataGridView();
+            grid.Dock = DockStyle.Fill;
+            grid.Margin = new Padding(0);
+            grid.BackgroundColor = Color.White;
+            grid.BorderStyle = BorderStyle.None;
+            grid.AllowUserToAddRows = false;
+            grid.AllowUserToDeleteRows = false;
+            grid.AllowUserToResizeRows = false;
+            grid.RowHeadersVisible = false;
+            grid.ReadOnly = true;
+            grid.MultiSelect = false;
+            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            grid.EnableHeadersVisualStyles = false;
+            grid.ColumnHeadersHeight = 50;
+            grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            grid.RowTemplate.Height = 74;
+            grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            grid.GridColor = Color.FromArgb(231, 236, 242);
+            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(240, 244, 249);
+            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(49, 59, 72);
+            grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.2F, FontStyle.Bold, GraphicsUnit.Point);
+            grid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(8, 0, 4, 0);
+            grid.DefaultCellStyle.BackColor = Color.White;
+            grid.DefaultCellStyle.ForeColor = Color.FromArgb(38, 46, 57);
+            grid.DefaultCellStyle.Font = new Font("Segoe UI", 9.6F, FontStyle.Regular, GraphicsUnit.Point);
+            grid.DefaultCellStyle.Padding = new Padding(8, 2, 4, 2);
+            grid.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(239, 246, 255);
+            grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(25, 33, 43);
+            grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249, 251, 253);
+
+            Action<string, string, float> addCol = delegate (string name, string text, float weight)
+            {
+                DataGridViewTextBoxColumn c = new DataGridViewTextBoxColumn();
+                c.Name = name;
+                c.HeaderText = text;
+                c.FillWeight = weight;
+                c.SortMode = DataGridViewColumnSortMode.NotSortable;
+                grid.Columns.Add(c);
+            };
+
+            addCol("CariNo", "CARİ NO", 72F);
+            addCol("AdSoyad", "AD SOYAD", 120F);
+            addCol("Tckn", "T.C. KİMLİK NO", 100F);
+            addCol("Iletisim", "İLETİŞİM & TELEFON", 145F);
+            addCol("Sehir", "ŞEHİR / İLÇE", 95F);
+            addCol("Bakiye", "GÜNCEL BAKİYE", 92F);
+            addCol("SonIslem", "SON İŞLEM", 100F);
+            addCol("Islemler", "İŞLEMLER", 105F);
+
+            tableLayout.Controls.Add(grid, 0, 0);
+
+            TableLayoutPanel footer = new TableLayoutPanel();
+            footer.Dock = DockStyle.Fill;
+            footer.Padding = new Padding(14, 4, 12, 4);
+            footer.ColumnCount = 2;
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65F));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35F));
+
+            Label lblCount = new Label();
+            lblCount.Dock = DockStyle.Fill;
+            lblCount.TextAlign = ContentAlignment.MiddleLeft;
+            lblCount.Font = new Font("Segoe UI", 8.8F, FontStyle.Regular, GraphicsUnit.Point);
+            lblCount.ForeColor = Color.FromArgb(105, 116, 132);
+            footer.Controls.Add(lblCount, 0, 0);
+
+            Label pages = new Label();
+            pages.Dock = DockStyle.Fill;
+            pages.Text = "‹     1     2     3     ...     ›";
+            pages.TextAlign = ContentAlignment.MiddleRight;
+            pages.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            pages.ForeColor = Color.FromArgb(27, 82, 170);
+            footer.Controls.Add(pages, 1, 0);
+            tableLayout.Controls.Add(footer, 0, 1);
+            page.Controls.Add(tableCard, 0, 3);
+
+            // ========================= ALT DURUM =========================
+            Label status = new Label();
+            status.Dock = DockStyle.Fill;
+            status.Margin = new Padding(4, 4, 0, 0);
+            status.Text = "●  Veri kaynağı: uygulamanın mevcut cari kayıtları     •     TCKN doğrulama görünümü aktif";
+            status.TextAlign = ContentAlignment.MiddleLeft;
+            status.Font = new Font("Segoe UI", 8.3F, FontStyle.Regular, GraphicsUnit.Point);
+            status.ForeColor = Color.FromArgb(98, 109, 124);
+            page.Controls.Add(status, 0, 4);
+
+            // ========================= VERİ DOLDURMA =========================
+            Action doldur = null;
+            doldur = delegate
+            {
+                string q = txtAra.Text == "Ad soyad, TCKN veya telefon..." ? "" : txtAra.Text.Trim();
+                string city = cmbSehir.SelectedItem == null ? "Şehir: Tümü" : cmbSehir.SelectedItem.ToString();
+
+                var list = AppData.Cariler
+                    .Where(c => c.Tip == "Müşteri" && string.IsNullOrWhiteSpace(c.FirmaAdi))
+                    .Where(c => city == "Şehir: Tümü" || string.Equals(c.Sehir, city, StringComparison.OrdinalIgnoreCase))
+                    .Where(c => string.IsNullOrWhiteSpace(q)
+                        || (!string.IsNullOrWhiteSpace(c.CariAdi) && c.CariAdi.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                        || (!string.IsNullOrWhiteSpace(c.KimlikNo) && c.KimlikNo.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                        || (!string.IsNullOrWhiteSpace(c.Telefon) && c.Telefon.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                        || (!string.IsNullOrWhiteSpace(c.Email) && c.Email.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0))
+                    .ToList();
+
+                grid.Rows.Clear();
+                foreach (CariKaydi cari in list)
+                {
+                    string kimlik = string.IsNullOrWhiteSpace(cari.KimlikNo) ? "—" : cari.KimlikNo;
+                    string telefon = string.IsNullOrWhiteSpace(cari.Telefon) ? "—" : cari.Telefon;
+                    string email = string.IsNullOrWhiteSpace(cari.Email) ? "—" : cari.Email;
+                    string sehir = string.IsNullOrWhiteSpace(cari.Sehir) ? "—" : cari.Sehir;
+                    string ad = string.IsNullOrWhiteSpace(cari.CariAdi) ? "—" : cari.CariAdi;
+                    string kod = string.IsNullOrWhiteSpace(cari.CariKodu) ? "—" : cari.CariKodu;
+
+                    int r = grid.Rows.Add(
+                        kod,
+                        ad + Environment.NewLine + "Bireysel Müşteri",
+                        kimlik,
+                        telefon + Environment.NewLine + email,
+                        sehir,
+                        "₺ 0,00" + Environment.NewLine + "Dengede",
+                        "—" + Environment.NewLine + "Kayıt",
+                        "◉    ✎    Fatura Kes");
+
+                    grid.Rows[r].Height = 74;
+                    grid.Rows[r].Tag = cari;
+                    grid.Rows[r].Cells[0].Style.ForeColor = Color.FromArgb(12, 91, 199);
+                    grid.Rows[r].Cells[1].Style.Font = new Font("Segoe UI", 9.7F, FontStyle.Bold, GraphicsUnit.Point);
+                    grid.Rows[r].Cells[5].Style.ForeColor = Color.FromArgb(95, 106, 121);
+                    grid.Rows[r].Cells[7].Style.ForeColor = Color.FromArgb(20, 78, 165);
+                }
+
+                lblCount.Text = "Toplam " + list.Count + " müşteriden " + (list.Count == 0 ? "0" : "1-" + Math.Min(10, list.Count)) + " arası gösteriliyor";
+            };
+
+            txtAra.GotFocus += delegate
+            {
+                if (txtAra.Text == "Ad soyad, TCKN veya telefon...")
+                {
+                    txtAra.Text = "";
+                    txtAra.ForeColor = Color.FromArgb(45, 55, 68);
+                }
+            };
+            txtAra.LostFocus += delegate
+            {
+                if (string.IsNullOrWhiteSpace(txtAra.Text))
+                {
+                    txtAra.Text = "Ad soyad, TCKN veya telefon...";
+                    txtAra.ForeColor = Color.FromArgb(85, 96, 111);
+                }
+            };
+            txtAra.TextChanged += delegate { if (doldur != null && txtAra.Text != "Ad soyad, TCKN veya telefon...") doldur(); };
+            cmbSehir.SelectedIndexChanged += delegate { if (doldur != null) doldur(); };
+            btnSifirla.Click += delegate
+            {
+                txtAra.Text = "Ad soyad, TCKN veya telefon...";
+                txtAra.ForeColor = Color.FromArgb(85, 96, 111);
+                cmbSehir.SelectedIndex = 0;
+                cmbBakiye.SelectedIndex = 0;
+                doldur();
+            };
+
+            btnYeni.Click += delegate { CariHesapForm f = new CariHesapForm(); f.ShowDialog(this); MusterilerAc(); };
+            btnYazdir.Click += delegate { MessageBox.Show("Yazdırma işlemi bu müşteri listesi için hazırlanabilir.", "Yazdır", MessageBoxButtons.OK, MessageBoxIcon.Information); };
+            btnExcel.Click += delegate { MessageBox.Show("Dışa aktarma düğmesi hazır. Excel aktarımı veri katmanına göre bağlanabilir.", "Dışa Aktar", MessageBoxButtons.OK, MessageBoxIcon.Information); };
+
+            grid.CellClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex != grid.Columns["Islemler"].Index) return;
+                CariKaydi cari = grid.Rows[e.RowIndex].Tag as CariKaydi;
+                if (cari == null) return;
+                Rectangle rect = grid.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
+                int localX = grid.PointToClient(Cursor.Position).X - rect.Left;
+                if (localX < rect.Width * 0.32)
+                {
+                    MessageBox.Show("Cari No: " + cari.CariKodu + Environment.NewLine + "Ad Soyad: " + cari.CariAdi + Environment.NewLine + "TCKN: " + cari.KimlikNo + Environment.NewLine + "Telefon: " + cari.Telefon + Environment.NewLine + "E-posta: " + cari.Email + Environment.NewLine + "Şehir: " + cari.Sehir, "Müşteri Bilgileri", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else if (localX >= rect.Width * 0.60)
+                {
+                    YeniFaturaForm f = new YeniFaturaForm();
+                    f.ShowDialog(this);
+                }
+            };
+
+            doldur();
+            pnlContent.ResumeLayout(true);
         }
+
 
         // =========================================================
         // KURUMSAL MÜŞTERİLER
@@ -3131,89 +3520,57 @@ namespace UrunFaturaYonetimi
 
         private void KurumsalAc()
         {
-            SayfayiTemizle(
-                "Kurumsal Müşteriler");
+            SayfayiTemizle("Kurumsal Müşteriler");
+            pnlContent.SuspendLayout();
+            pnlContent.AutoScroll = false;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            Label baslik =
-                SayfaListeBasligi(
-                    "Kurumsal Müşteriler");
+            var kurumsal = AppData.Cariler
+                .Where(c => !string.IsNullOrWhiteSpace(c.FirmaAdi))
+                .ToList();
 
-            pnlContent.Controls.Add(
-                baslik);
+            TableLayoutPanel page = new TableLayoutPanel();
+            page.Dock = DockStyle.Fill; page.Margin = new Padding(0); page.Padding = new Padding(24, 18, 24, 16);
+            page.BackColor = Color.FromArgb(246, 249, 253); page.ColumnCount = 1; page.RowCount = 5;
+            page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
+            page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
+            pnlContent.Controls.Add(page);
 
-            DataGridView grid =
-                TemelGrid();
+            Panel header = new Panel(); header.Dock = DockStyle.Fill; header.BackColor = Color.Transparent;
+            Label title = new Label(); title.Text = "Kurumsal Müşteriler"; title.AutoSize = true; title.Font = new Font("Segoe UI", 18F, FontStyle.Bold); title.Location = new Point(0, 2); header.Controls.Add(title);
+            Label tag = Badge("TÜZEL CARİ MODÜLÜ", Color.FromArgb(231, 239, 250), _primary); tag.Location = new Point(220, 8); header.Controls.Add(tag);
+            Label sub = new Label(); sub.Text = "Kayıtlı tüzel firmalar, VKN / Vergi daireleri ve kurumsal cari sözleşmeler"; sub.AutoSize = true; sub.Font = new Font("Segoe UI", 9.5F); sub.ForeColor = _muted; sub.Location = new Point(2, 42); header.Controls.Add(sub);
+            Button btnYeni = SmallActionButton("\uE710", "+ Yeni Kurumsal Müşteri", true); btnYeni.Size = new Size(210, 38); btnYeni.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnYeni);
+            Button btnExcel = SmallActionButton("\uE896", "Excel İndir", false); btnExcel.Size = new Size(118, 38); btnExcel.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnExcel);
+            Button btnGib = SmallActionButton("\uE72C", "Toplu GİB Sorgula", false); btnGib.Size = new Size(170, 38); btnGib.Anchor = AnchorStyles.Top | AnchorStyles.Right; header.Controls.Add(btnGib);
+            Action layoutHeader = delegate { btnYeni.Left = header.ClientSize.Width - btnYeni.Width; btnYeni.Top = 42; btnExcel.Left = btnYeni.Left - btnExcel.Width - 8; btnExcel.Top = 0; btnGib.Left = btnExcel.Left - btnGib.Width - 8; btnGib.Top = 0; }; header.Resize += delegate { layoutHeader(); }; layoutHeader(); page.Controls.Add(header, 0, 0);
 
-            grid.Location = new Point(24, 92);
+            TableLayoutPanel stats = new TableLayoutPanel(); stats.Dock = DockStyle.Fill; stats.Margin = new Padding(0, 0, 0, 12); stats.ColumnCount = 4; stats.RowCount = 1;
+            for (int i = 0; i < 4; i++) stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            string[] st = { "TOPLAM KURUMSAL FİRMA", "GİB E-FATURA MÜKELLEFİ", "TOPLAM KURUMSAL ALACAK", "ORTALAMA VADE" };
+            string[] sv = { kurumsal.Count + " Şirket", "—", "₺ 0,00", "— Gün" };
+            string[] sn = { "Aktif kurumsal cari kayıtları", "Mükellefiyet alanı modelde yok", "Bakiye alanı modelde yok", "Vade alanı modelde yok" };
+            for (int i = 0; i < 4; i++) { RoundedPanel c = new RoundedPanel(); c.Dock = DockStyle.Fill; c.Margin = new Padding(i == 0 ? 0 : 5, 0, i == 3 ? 0 : 5, 0); c.Radius = 8; c.FillColor = Color.White; c.BorderColor = _border; c.BorderThickness = 1; Label a = new Label() { Text = st[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold), ForeColor = _muted, Location = new Point(14, 18) }; Label v = new Label() { Text = sv[i], AutoSize = true, Font = new Font("Segoe UI", 18F, FontStyle.Bold), ForeColor = _text, Location = new Point(14, 47) }; Label n = new Label() { Text = sn[i], AutoSize = true, Font = new Font("Segoe UI", 8.5F), ForeColor = _muted, Location = new Point(14, 88) }; c.Controls.Add(a); c.Controls.Add(v); c.Controls.Add(n); stats.Controls.Add(c, i, 0); }
+            page.Controls.Add(stats, 0, 1);
 
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
+            RoundedPanel filterCard = new RoundedPanel(); filterCard.Dock = DockStyle.Fill; filterCard.Margin = new Padding(0, 0, 0, 12); filterCard.Radius = 7; filterCard.FillColor = Color.White; filterCard.BorderColor = _border; filterCard.BorderThickness = 1;
+            TableLayoutPanel filters = new TableLayoutPanel(); filters.Dock = DockStyle.Fill; filters.Padding = new Padding(10, 10, 10, 9); filters.ColumnCount = 4; filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F)); filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F)); filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); filters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F)); filterCard.Controls.Add(filters);
+            TextBox txt = new TextBox() { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10F), Text = "Firma unvanı, VKN veya cari kodu..." }; txt.Margin = new Padding(0, 0, 8, 0); filters.Controls.Add(txt, 0, 0);
+            ComboBox city = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; city.Margin = new Padding(0, 0, 8, 0); city.Items.Add("Şehir: Tümü"); foreach (string x in kurumsal.Where(x => !string.IsNullOrWhiteSpace(x.Sehir)).Select(x => x.Sehir).Distinct().OrderBy(x => x)) city.Items.Add(x); city.SelectedIndex = 0; filters.Controls.Add(city, 1, 0);
+            ComboBox gib = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList }; gib.Margin = new Padding(0, 0, 8, 0); gib.Items.AddRange(new object[] { "GİB Durumu: Tümü", "e-Fatura", "e-Arşiv" }); gib.SelectedIndex = 0; filters.Controls.Add(gib, 2, 0); Button clear = new Button() { Text = "Temizle", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(241, 244, 248) }; clear.FlatAppearance.BorderSize = 0; filters.Controls.Add(clear, 3, 0); page.Controls.Add(filterCard, 0, 2);
 
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
-
-            KolonEkle(
-                grid,
-                "Kod",
-                "Cari Kodu");
-
-            KolonEkle(
-                grid,
-                "FirmaAdi",
-                "Firma Adı");
-
-            KolonEkle(
-                grid,
-                "VergiNo",
-                "Vergi No");
-
-            KolonEkle(
-                grid,
-                "Yetkili",
-                "Yetkili Kişi");
-
-            KolonEkle(
-                grid,
-                "Telefon",
-                "Telefon");
-
-            KolonEkle(
-                grid,
-                "Email",
-                "E-Posta");
-
-            KolonEkle(
-                grid,
-                "Sehir",
-                "Şehir");
-
-            foreach (
-                CariKaydi cari
-                in AppData.Cariler)
-            {
-                if (string.IsNullOrWhiteSpace(
-                    cari.FirmaAdi))
-                {
-                    continue;
-                }
-
-                grid.Rows.Add(
-                    cari.CariKodu,
-                    cari.FirmaAdi,
-                    cari.KimlikNo,
-                    cari.YetkiliKisi,
-                    cari.Telefon,
-                    cari.Email,
-                    cari.Sehir);
-            }
-
-            pnlContent.Controls.Add(
-                grid);
+            RoundedPanel tableCard = new RoundedPanel(); tableCard.Dock = DockStyle.Fill; tableCard.Radius = 7; tableCard.FillColor = Color.White; tableCard.BorderColor = _border; tableCard.BorderThickness = 1; TableLayoutPanel tl = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 }; tl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); tl.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F)); tableCard.Controls.Add(tl);
+            DataGridView grid = new DataGridView(); grid.Dock = DockStyle.Fill; grid.BorderStyle = BorderStyle.None; grid.BackgroundColor = Color.White; grid.AllowUserToAddRows = false; grid.RowHeadersVisible = false; grid.ReadOnly = true; grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect; grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; grid.EnableHeadersVisualStyles = false; grid.ColumnHeadersHeight = 42; grid.RowTemplate.Height = 58; grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal; grid.GridColor = _border; grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(242, 245, 249); grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold); grid.DefaultCellStyle.Font = new Font("Segoe UI", 9.2F); grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(238, 246, 255); grid.DefaultCellStyle.SelectionForeColor = _text;
+            Action<string, string, float> col = delegate (string n, string h, float w) { var c = new DataGridViewTextBoxColumn(); c.Name = n; c.HeaderText = h; c.FillWeight = w; c.SortMode = DataGridViewColumnSortMode.NotSortable; grid.Columns.Add(c); }; col("CariKodu", "Cari Kodu", 75); col("Firma", "Firma Unvanı", 190); col("VKN", "Vergi No (VKN)", 100); col("Yetkili", "Yetkili Kişi", 105); col("Telefon", "Telefon", 100); col("Sehir", "Şehir", 80); col("Islem", "Hızlı İşlemler", 95); tl.Controls.Add(grid, 0, 0);
+            Label count = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0), ForeColor = _muted, Font = new Font("Segoe UI", 8.7F) }; tl.Controls.Add(count, 0, 1); page.Controls.Add(tableCard, 0, 3);
+            Action fill = null; fill = delegate { string q = txt.Text == "Firma unvanı, VKN veya cari kodu..." ? "" : txt.Text.Trim(); string cs = city.SelectedItem == null ? "Şehir: Tümü" : city.SelectedItem.ToString(); var list = AppData.Cariler.Where(c => !string.IsNullOrWhiteSpace(c.FirmaAdi)).Where(c => cs == "Şehir: Tümü" || string.Equals(c.Sehir, cs, StringComparison.OrdinalIgnoreCase)).Where(c => string.IsNullOrWhiteSpace(q) || (c.FirmaAdi ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (c.KimlikNo ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (c.CariKodu ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0).ToList(); grid.Rows.Clear(); foreach (var c in list) { int r = grid.Rows.Add(c.CariKodu, c.FirmaAdi, c.KimlikNo, c.YetkiliKisi, c.Telefon, c.Sehir, "Görüntüle   Düzenle"); grid.Rows[r].Tag = c; grid.Rows[r].Cells[0].Style.ForeColor = _primary; grid.Rows[r].Cells[1].Style.Font = new Font("Segoe UI", 9.4F, FontStyle.Bold); grid.Rows[r].Cells[6].Style.ForeColor = _primary; } count.Text = "Toplam " + list.Count + " kurumsal kayıt gösteriliyor"; };
+            txt.GotFocus += delegate { if (txt.Text == "Firma unvanı, VKN veya cari kodu...") txt.Text = ""; }; txt.LostFocus += delegate { if (string.IsNullOrWhiteSpace(txt.Text)) txt.Text = "Firma unvanı, VKN veya cari kodu..."; }; txt.TextChanged += delegate { if (fill != null && txt.Text != "Firma unvanı, VKN veya cari kodu...") fill(); }; city.SelectedIndexChanged += delegate { if (fill != null) fill(); }; clear.Click += delegate { txt.Text = "Firma unvanı, VKN veya cari kodu..."; city.SelectedIndex = 0; gib.SelectedIndex = 0; fill(); }; btnYeni.Click += delegate { CariHesapForm f = new CariHesapForm(); f.ShowDialog(this); KurumsalAc(); }; btnExcel.Click += delegate { MessageBox.Show("Excel aktarımı mevcut veri katmanına göre bağlanabilir.", "Excel", MessageBoxButtons.OK, MessageBoxIcon.Information); }; btnGib.Click += delegate { MessageBox.Show("GİB mükellefiyet alanı mevcut CariKaydi modelinde bulunmadığı için sorgu görünümü henüz veriyle bağlanmadı.", "GİB", MessageBoxButtons.OK, MessageBoxIcon.Information); };
+            TableLayoutPanel info = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0, 12, 0, 0) }; for (int i = 0; i < 3; i++) info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F)); string[] it = { "VKN & GİB Otomatik Eşleme", "Dinamik Risk ve Kredi Limitleri", "WinForms ERP Entegrasyonu" }; string[] ib = { "Kurumsal cari kayıtları mevcut VKN ve firma bilgileriyle listelenir.", "Risk ve limit alanları veri modeline eklendiğinde bu kart gerçek veriye bağlanabilir.", "Bu ekran doğrudan AppData.Cariler kayıtlarını kullanır." }; for (int i = 0; i < 3; i++) { RoundedPanel c = new RoundedPanel(); c.Dock = DockStyle.Fill; c.Margin = new Padding(i == 0 ? 0 : 5, 0, i == 2 ? 0 : 5, 0); c.Radius = 7; c.FillColor = Color.White; c.BorderColor = _border; c.BorderThickness = 1; Label a = new Label() { Text = it[i], AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold), Location = new Point(16, 15) }; Label b = new Label() { Text = ib[i], AutoSize = false, Size = new Size(330, 45), Font = new Font("Segoe UI", 8.5F), ForeColor = _muted, Location = new Point(16, 43) }; c.Controls.Add(a); c.Controls.Add(b); info.Controls.Add(c, i, 0); }
+            page.Controls.Add(info, 0, 4); fill(); pnlContent.ResumeLayout(true);
         }
 
         // =========================================================
@@ -3222,328 +3579,374 @@ namespace UrunFaturaYonetimi
 
         private void CariAc()
         {
-            SayfayiTemizle(
-                "Cari Hesaplar");
+            SayfayiTemizle("Cari Hesaplar");
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            Label title =
-                SayfaListeBasligi(
-                    "Cari Hesap Listesi");
+            Panel canvas = new Panel();
+            canvas.Location = new Point(0, 0);
+            canvas.Size = new Size(Math.Max(1080, pnlContent.ClientSize.Width), 900);
+            canvas.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            canvas.BackColor = Color.Transparent;
+            pnlContent.Controls.Add(canvas);
 
-            pnlContent.Controls.Add(
-                title);
+            int margin = 24;
+            int gap = 12;
 
-            // -----------------------------------------------------
-            // LİSTE ARAMA
-            // -----------------------------------------------------
+            // BAŞLIK
+            Label eyebrow = new Label();
+            eyebrow.Text = "FİNANS & MUHASEBE / CARİ HESAPLAR";
+            eyebrow.AutoSize = true;
+            eyebrow.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            eyebrow.ForeColor = _primary;
+            eyebrow.Location = new Point(margin, 18);
+            canvas.Controls.Add(eyebrow);
 
-            Label lblAra =
-                new Label();
+            Label title = new Label();
+            title.Text = "Cari Hesap Yönetimi & Bakiye Takibi";
+            title.AutoSize = true;
+            title.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
+            title.ForeColor = _text;
+            title.Location = new Point(margin, 38);
+            canvas.Controls.Add(title);
 
-            lblAra.Text =
-                "Liste içinde ara";
+            Label subtitle = new Label();
+            subtitle.Text = "Müşteri ve tedarikçi cari kartlarını, iletişim bilgilerini ve kayıt durumlarını tek ekrandan yönetin.";
+            subtitle.AutoSize = true;
+            subtitle.Font = new Font("Segoe UI", 9.5F);
+            subtitle.ForeColor = _muted;
+            subtitle.Location = new Point(margin, 72);
+            canvas.Controls.Add(subtitle);
 
-            lblAra.AutoSize =
-                true;
-
-            lblAra.Font =
-                new Font(
-                    "Segoe UI",
-                    11.5F,
-                    FontStyle.Bold);
-
-            lblAra.ForeColor =
-                Color.Gray;
-
-            lblAra.Location =
-                new Point(
-                    28,
-                    65);
-
-            pnlContent.Controls.Add(
-                lblAra);
-
-            TextBox txtAra =
-                new TextBox();
-
-            txtAra.Location =
-                new Point(
-                    28,
-                    88);
-
-            txtAra.Size =
-                new Size(
-                    380,
-                    30);
-
-            pnlContent.Controls.Add(
-                txtAra);
-
-            // -----------------------------------------------------
-            // YENİ CARİ
-            // -----------------------------------------------------
-
-            Button btnYeniCari =
-                MaviButon(
-                    "+ Yeni Cari");
-
-            btnYeniCari.Location =
-                new Point(
-                    940,
-                    82);
-
-            btnYeniCari.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Right;
-
-            btnYeniCari.Click +=
-                delegate
-                {
-                    CariHesapForm form =
-                        new CariHesapForm();
-
-                    form.ShowDialog(
-                        this);
-
-                    CariAc();
-                };
-
-            pnlContent.Controls.Add(
-                btnYeniCari);
-
-            // -----------------------------------------------------
-            // GRID
-            // -----------------------------------------------------
-
-            DataGridView grid =
-                TemelGrid();
-
-            grid.Location =
-                new Point(
-                    28,
-                    140);
-
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
-
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
-
-            grid.AutoSizeColumnsMode =
-                DataGridViewAutoSizeColumnsMode.None;
-
-            grid.ScrollBars =
-                ScrollBars.Both;
-
-            grid.ReadOnly =
-                true;
-
-            // -----------------------------------------------------
-            // FAVORİ
-            // -----------------------------------------------------
-
-            DataGridViewTextBoxColumn favoriColumn =
-                new DataGridViewTextBoxColumn();
-
-            favoriColumn.Name =
-                "Favori";
-
-            favoriColumn.HeaderText =
-                "★";
-
-            favoriColumn.Width =
-                55;
-
-            favoriColumn.SortMode =
-                DataGridViewColumnSortMode.NotSortable;
-
-            grid.Columns.Add(
-                favoriColumn);
-
-            // -----------------------------------------------------
-            // DİĞER KOLONLAR
-            // -----------------------------------------------------
-
-            KolonEkle(
-                grid,
-                "CariKodu",
-                "Cari Kodu");
-
-            KolonEkle(
-                grid,
-                "Tip",
-                "Tip");
-
-            KolonEkle(
-                grid,
-                "CariAdi",
-                "Müşteri / Tedarikçi Adı");
-
-            KolonEkle(
-                grid,
-                "YetkiliKisi",
-                "Yetkili Kişi");
-
-            KolonEkle(
-                grid,
-                "FirmaNo",
-                "Firma No");
-
-            KolonEkle(
-                grid,
-                "FirmaAdi",
-                "Firma Adı");
-
-            KolonEkle(
-                grid,
-                "Telefon",
-                "Telefon");
-
-            KolonEkle(
-                grid,
-                "Email",
-                "E-Posta");
-
-            KolonEkle(
-                grid,
-                "Mahalle",
-                "Mahalle");
-
-            KolonEkle(
-                grid,
-                "Sehir",
-                "Şehir");
-
-            KolonEkle(
-                grid,
-                "Ulke",
-                "Ülke");
-
-            grid.Columns["CariKodu"].Width =
-                115;
-
-            grid.Columns["Tip"].Width =
-                110;
-
-            grid.Columns["CariAdi"].Width =
-                200;
-
-            grid.Columns["YetkiliKisi"].Width =
-                160;
-
-            grid.Columns["FirmaNo"].Width =
-                110;
-
-            grid.Columns["FirmaAdi"].Width =
-                190;
-
-            grid.Columns["Telefon"].Width =
-                140;
-
-            grid.Columns["Email"].Width =
-                190;
-
-            grid.Columns["Mahalle"].Width =
-                165;
-
-            grid.Columns["Sehir"].Width =
-                110;
-
-            grid.Columns["Ulke"].Width =
-                110;
-
-            // -----------------------------------------------------
-            // VERİLER
-            // -----------------------------------------------------
-
-            foreach (
-                CariKaydi cari
-                in AppData.Cariler)
+            Button btnYeniCari = MaviButon("+ Yeni Cari Hesap");
+            btnYeniCari.Size = new Size(170, 40);
+            btnYeniCari.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnYeniCari.Click += delegate
             {
-                int index =
-                    grid.Rows.Add(
-                        cari.Favori
-                            ? "★"
-                            : "☆",
+                CariHesapForm form = new CariHesapForm();
+                form.ShowDialog(this);
+                CariAc();
+            };
+            canvas.Controls.Add(btnYeniCari);
+
+            Button btnYenile = new Button();
+            btnYenile.Text = "↻  Verileri Yenile";
+            btnYenile.Size = new Size(145, 40);
+            btnYenile.FlatStyle = FlatStyle.Flat;
+            btnYenile.FlatAppearance.BorderColor = _border;
+            btnYenile.FlatAppearance.BorderSize = 1;
+            btnYenile.BackColor = Color.White;
+            btnYenile.ForeColor = _text;
+            btnYenile.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnYenile.Cursor = Cursors.Hand;
+            btnYenile.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnYenile.Click += delegate { CariAc(); };
+            canvas.Controls.Add(btnYenile);
+
+            // KPI KARTLARI - mevcut AppData.Cariler üzerinden
+            int toplamCari = AppData.Cariler.Count;
+            int musteriSayisi = AppData.Cariler.Count(c =>
+                !string.IsNullOrWhiteSpace(c.Tip) &&
+                c.Tip.IndexOf("müşteri", StringComparison.OrdinalIgnoreCase) >= 0);
+            int tedarikciSayisi = AppData.Cariler.Count(c =>
+                !string.IsNullOrWhiteSpace(c.Tip) &&
+                c.Tip.IndexOf("tedarik", StringComparison.OrdinalIgnoreCase) >= 0);
+            int favoriSayisi = AppData.Cariler.Count(c => c.Favori);
+
+            TableLayoutPanel kpis = new TableLayoutPanel();
+            kpis.Location = new Point(margin, 112);
+            kpis.Size = new Size(canvas.Width - margin * 2, 126);
+            kpis.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            kpis.ColumnCount = 4;
+            kpis.RowCount = 1;
+            kpis.Margin = new Padding(0);
+            kpis.Padding = new Padding(0);
+            for (int i = 0; i < 4; i++)
+                kpis.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+
+            string[] cardTitles = { "TOPLAM CARİ HESAP", "MÜŞTERİ HESAPLARI", "TEDARİKÇİ HESAPLARI", "FAVORİ CARİLER" };
+            string[] cardValues = { toplamCari.ToString() + " Kayıt", musteriSayisi.ToString() + " Müşteri", tedarikciSayisi.ToString() + " Tedarikçi", favoriSayisi.ToString() + " Favori" };
+            string[] cardNotes = { "Tüm cari kartları", "Kayıtlı müşteri carileri", "Kayıtlı tedarikçi carileri", "Hızlı erişim için işaretlenenler" };
+            string[] cardGlyphs = { "▣", "●", "◆", "★" };
+
+            for (int i = 0; i < 4; i++)
+            {
+                RoundedPanel card = new RoundedPanel();
+                card.Dock = DockStyle.Fill;
+                card.Margin = new Padding(i == 0 ? 0 : 6, 0, i == 3 ? 0 : 6, 0);
+                card.Radius = 6;
+                card.FillColor = Color.White;
+                card.BorderColor = _border;
+                card.BorderThickness = 1;
+
+                Label ct = new Label();
+                ct.Text = cardTitles[i];
+                ct.AutoSize = true;
+                ct.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+                ct.ForeColor = _muted;
+                ct.Location = new Point(14, 16);
+                card.Controls.Add(ct);
+
+                Label cv = new Label();
+                cv.Text = cardValues[i];
+                cv.AutoSize = true;
+                cv.Font = new Font("Segoe UI", 17F, FontStyle.Bold);
+                cv.ForeColor = _text;
+                cv.Location = new Point(14, 44);
+                card.Controls.Add(cv);
+
+                Label cn = new Label();
+                cn.Text = cardNotes[i];
+                cn.AutoSize = true;
+                cn.Font = new Font("Segoe UI", 8.5F);
+                cn.ForeColor = _muted;
+                cn.Location = new Point(14, 88);
+                card.Controls.Add(cn);
+
+                Label icon = new Label();
+                icon.Text = cardGlyphs[i];
+                icon.AutoSize = false;
+                icon.Size = new Size(34, 34);
+                icon.TextAlign = ContentAlignment.MiddleCenter;
+                icon.Font = new Font("Segoe UI Symbol", 14F, FontStyle.Bold);
+                icon.ForeColor = _primary;
+                icon.BackColor = Color.FromArgb(237, 244, 255);
+                icon.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                card.Controls.Add(icon);
+                card.Resize += delegate (object sender, EventArgs e)
+                {
+                    Panel cp = sender as Panel;
+                    if (cp != null) icon.Left = cp.ClientSize.Width - icon.Width - 14;
+                };
+                icon.Left = Math.Max(14, card.Width - icon.Width - 14);
+                icon.Top = 14;
+                kpis.Controls.Add(card, i, 0);
+            }
+            canvas.Controls.Add(kpis);
+
+            // FİLTRE KARTI
+            RoundedPanel filterCard = new RoundedPanel();
+            filterCard.Location = new Point(margin, kpis.Bottom + gap);
+            filterCard.Size = new Size(canvas.Width - margin * 2, 78);
+            filterCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            filterCard.Radius = 6;
+            filterCard.FillColor = Color.White;
+            filterCard.BorderColor = _border;
+            filterCard.BorderThickness = 1;
+            canvas.Controls.Add(filterCard);
+
+            TextBox txtAra = new TextBox();
+            txtAra.Location = new Point(18, 23);
+            txtAra.Size = new Size(420, 30);
+            txtAra.Font = new Font("Segoe UI", 10F);
+            CueBanner(txtAra, "Cari kodu, unvan, yetkili, telefon veya e-posta ara...");
+            filterCard.Controls.Add(txtAra);
+
+            ComboBox cmbTip = new ComboBox();
+            cmbTip.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbTip.Items.AddRange(new object[] { "Cari Türü: Tümü", "Müşteri", "Tedarikçi" });
+            cmbTip.SelectedIndex = 0;
+            cmbTip.Font = new Font("Segoe UI", 9.5F);
+            cmbTip.Size = new Size(190, 30);
+            cmbTip.Location = new Point(452, 22);
+            filterCard.Controls.Add(cmbTip);
+
+            ComboBox cmbSehir = new ComboBox();
+            cmbSehir.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbSehir.Items.Add("Şehir: Tümü");
+            foreach (string sehir in AppData.Cariler.Select(c => c.Sehir).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                cmbSehir.Items.Add(sehir);
+            cmbSehir.SelectedIndex = 0;
+            cmbSehir.Font = new Font("Segoe UI", 9.5F);
+            cmbSehir.Size = new Size(180, 30);
+            cmbSehir.Location = new Point(654, 22);
+            filterCard.Controls.Add(cmbSehir);
+
+            Button btnTemizle = new Button();
+            btnTemizle.Text = "Filtreleri Temizle";
+            btnTemizle.Size = new Size(135, 32);
+            btnTemizle.FlatStyle = FlatStyle.Flat;
+            btnTemizle.FlatAppearance.BorderColor = _border;
+            btnTemizle.BackColor = Color.White;
+            btnTemizle.ForeColor = _text;
+            btnTemizle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnTemizle.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            filterCard.Controls.Add(btnTemizle);
+
+            // TABLO KARTI
+            RoundedPanel tableCard = new RoundedPanel();
+            tableCard.Location = new Point(margin, filterCard.Bottom + gap);
+            tableCard.Size = new Size(canvas.Width - margin * 2, 475);
+            tableCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            tableCard.Radius = 6;
+            tableCard.FillColor = Color.White;
+            tableCard.BorderColor = _border;
+            tableCard.BorderThickness = 1;
+            canvas.Controls.Add(tableCard);
+
+            DataGridView grid = TemelGrid();
+            grid.Location = new Point(1, 1);
+            grid.Size = new Size(tableCard.Width - 2, 410);
+            grid.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            grid.ScrollBars = ScrollBars.Vertical;
+            grid.ReadOnly = true;
+            grid.BorderStyle = BorderStyle.None;
+            grid.BackgroundColor = Color.White;
+            grid.RowHeadersVisible = false;
+            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.MultiSelect = false;
+            grid.AllowUserToAddRows = false;
+            grid.AllowUserToDeleteRows = false;
+            grid.AllowUserToResizeRows = false;
+            grid.ColumnHeadersHeight = 42;
+            grid.RowTemplate.Height = 52;
+            grid.EnableHeadersVisualStyles = false;
+            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(242, 246, 250);
+            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(50, 58, 68);
+            grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            grid.DefaultCellStyle.Font = new Font("Segoe UI", 9F);
+            grid.DefaultCellStyle.ForeColor = _text;
+            grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(232, 242, 255);
+            grid.DefaultCellStyle.SelectionForeColor = _text;
+            grid.GridColor = Color.FromArgb(232, 236, 241);
+
+            DataGridViewTextBoxColumn favoriColumn = new DataGridViewTextBoxColumn();
+            favoriColumn.Name = "Favori";
+            favoriColumn.HeaderText = "★";
+            favoriColumn.FillWeight = 35;
+            favoriColumn.MinimumWidth = 42;
+            favoriColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            grid.Columns.Add(favoriColumn);
+
+            KolonEkle(grid, "CariKodu", "CARİ KODU");
+            KolonEkle(grid, "Tip", "TÜR");
+            KolonEkle(grid, "CariAdi", "CARİ ÜNVANI / FİRMA ADI");
+            KolonEkle(grid, "YetkiliKisi", "YETKİLİ KİŞİ");
+            KolonEkle(grid, "Iletisim", "İLETİŞİM");
+            KolonEkle(grid, "Konum", "ŞEHİR / ÜLKE");
+            KolonEkle(grid, "Hizli", "HIZLI İŞLEMLER");
+
+            grid.Columns["CariKodu"].FillWeight = 85;
+            grid.Columns["Tip"].FillWeight = 75;
+            grid.Columns["CariAdi"].FillWeight = 210;
+            grid.Columns["YetkiliKisi"].FillWeight = 110;
+            grid.Columns["Iletisim"].FillWeight = 160;
+            grid.Columns["Konum"].FillWeight = 100;
+            grid.Columns["Hizli"].FillWeight = 85;
+
+            Action listeyiDoldur = delegate
+            {
+                grid.Rows.Clear();
+                string ara = txtAra.Text.Trim().ToLowerInvariant();
+                string tip = cmbTip.SelectedIndex > 0 ? cmbTip.SelectedItem.ToString() : "";
+                string sehir = cmbSehir.SelectedIndex > 0 ? cmbSehir.SelectedItem.ToString() : "";
+
+                foreach (CariKaydi cari in AppData.Cariler)
+                {
+                    string tum = (cari.CariKodu + " " + cari.CariAdi + " " + cari.FirmaAdi + " " + cari.YetkiliKisi + " " + cari.Telefon + " " + cari.Email + " " + cari.Sehir + " " + cari.Ulke).ToLowerInvariant();
+                    if (ara.Length > 0 && !tum.Contains(ara)) continue;
+                    if (tip.Length > 0 && (cari.Tip == null || cari.Tip.IndexOf(tip, StringComparison.OrdinalIgnoreCase) < 0)) continue;
+                    if (sehir.Length > 0 && !string.Equals(cari.Sehir, sehir, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    string unvan = !string.IsNullOrWhiteSpace(cari.CariAdi) ? cari.CariAdi : cari.FirmaAdi;
+                    string iletisim = !string.IsNullOrWhiteSpace(cari.Telefon) ? cari.Telefon : cari.Email;
+                    if (!string.IsNullOrWhiteSpace(cari.Telefon) && !string.IsNullOrWhiteSpace(cari.Email))
+                        iletisim = cari.Telefon + "  •  " + cari.Email;
+                    string konum = (cari.Sehir + " / " + cari.Ulke).Trim(' ', '/');
+
+                    int index = grid.Rows.Add(
+                        cari.Favori ? "★" : "☆",
                         cari.CariKodu,
                         cari.Tip,
-                        cari.CariAdi,
+                        unvan,
                         cari.YetkiliKisi,
-                        cari.FirmaNo,
-                        cari.FirmaAdi,
-                        cari.Telefon,
-                        cari.Email,
-                        cari.Mahalle,
-                        cari.Sehir,
-                        cari.Ulke);
+                        iletisim,
+                        konum,
+                        "Görüntüle   Düzenle");
+                    grid.Rows[index].Tag = cari;
+                }
+            };
 
-                grid.Rows[index].Tag =
-                    cari;
-            }
+            listeyiDoldur();
+            tableCard.Controls.Add(grid);
 
-            // -----------------------------------------------------
-            // FAVORİ TIKLAMA
-            // -----------------------------------------------------
+            Label tableSummary = new Label();
+            tableSummary.AutoSize = true;
+            tableSummary.Font = new Font("Segoe UI", 9F);
+            tableSummary.ForeColor = _muted;
+            tableSummary.Location = new Point(14, 432);
+            tableCard.Controls.Add(tableSummary);
 
-            grid.CellClick +=
-                delegate (
-                    object sender,
-                    DataGridViewCellEventArgs e)
+            Label sourceInfo = new Label();
+            sourceInfo.Text = "Veri kaynağı: AppData.Cariler";
+            sourceInfo.AutoSize = true;
+            sourceInfo.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            sourceInfo.ForeColor = _primary;
+            sourceInfo.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            tableCard.Controls.Add(sourceInfo);
+
+            Action ozetGuncelle = delegate
+            {
+                tableSummary.Text = "Toplam " + AppData.Cariler.Count + " cari kaydından " + grid.Rows.Count + " kayıt listeleniyor";
+                sourceInfo.Left = tableCard.ClientSize.Width - sourceInfo.Width - 16;
+                sourceInfo.Top = 432;
+            };
+            ozetGuncelle();
+
+            txtAra.TextChanged += delegate { listeyiDoldur(); ozetGuncelle(); };
+            cmbTip.SelectedIndexChanged += delegate { listeyiDoldur(); ozetGuncelle(); };
+            cmbSehir.SelectedIndexChanged += delegate { listeyiDoldur(); ozetGuncelle(); };
+            btnTemizle.Click += delegate
+            {
+                txtAra.Clear();
+                cmbTip.SelectedIndex = 0;
+                cmbSehir.SelectedIndex = 0;
+                listeyiDoldur();
+                ozetGuncelle();
+            };
+
+            grid.CellClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0) return;
+                CariKaydi cari = grid.Rows[e.RowIndex].Tag as CariKaydi;
+                if (cari == null) return;
+
+                if (e.ColumnIndex == grid.Columns["Favori"].Index)
                 {
-                    if (e.RowIndex < 0)
-                    {
-                        return;
-                    }
+                    cari.Favori = !cari.Favori;
+                    grid.Rows[e.RowIndex].Cells["Favori"].Value = cari.Favori ? "★" : "☆";
+                }
+            };
 
-                    if (e.ColumnIndex !=
-                        grid.Columns[
-                            "Favori"].Index)
-                    {
-                        return;
-                    }
+            Action layout = delegate
+            {
+                canvas.Width = Math.Max(1080, pnlContent.ClientSize.Width);
+                btnYeniCari.Left = canvas.ClientSize.Width - margin - btnYeniCari.Width;
+                btnYeniCari.Top = 32;
+                btnYenile.Left = btnYeniCari.Left - btnYenile.Width - 8;
+                btnYenile.Top = 32;
 
-                    CariKaydi cari =
-                        grid.Rows[
-                            e.RowIndex]
-                            .Tag
-                        as CariKaydi;
+                kpis.Width = canvas.ClientSize.Width - margin * 2;
+                filterCard.Width = canvas.ClientSize.Width - margin * 2;
+                btnTemizle.Left = filterCard.ClientSize.Width - btnTemizle.Width - 16;
+                btnTemizle.Top = 21;
 
-                    if (cari == null)
-                    {
-                        return;
-                    }
-
-                    cari.Favori =
-                        !cari.Favori;
-
-                    grid.Rows[
-                        e.RowIndex]
-                        .Cells[
-                            "Favori"]
-                        .Value =
-                        cari.Favori
-                            ? "★"
-                            : "☆";
-                };
-
-            // -----------------------------------------------------
-            // FİLTRELE
-            // -----------------------------------------------------
-
-            txtAra.TextChanged +=
-                delegate
+                int available = btnTemizle.Left - 18;
+                if (available < 850)
                 {
-                    ListeFiltrele(
-                        grid,
-                        txtAra.Text);
-                };
+                    txtAra.Width = Math.Max(280, available - 390);
+                    cmbTip.Left = txtAra.Right + 12;
+                    cmbSehir.Left = cmbTip.Right + 12;
+                }
 
-            pnlContent.Controls.Add(
-                grid);
+                tableCard.Width = canvas.ClientSize.Width - margin * 2;
+                grid.Width = tableCard.ClientSize.Width - 2;
+                sourceInfo.Left = tableCard.ClientSize.Width - sourceInfo.Width - 16;
+            };
+
+            canvas.Resize += delegate { layout(); };
+            pnlContent.Resize += delegate { layout(); };
+            layout();
         }
 
         // =========================================================
@@ -3552,224 +3955,246 @@ namespace UrunFaturaYonetimi
 
         private void UrunlerAc()
         {
-            SayfayiTemizle(
-                "Ürün / Hizmetler");
+            SayfayiTemizle("Ürün / Hizmetler");
 
-            Label title =
-                SayfaListeBasligi(
-                    "Ürün ve Hizmet Listesi");
+            pnlContent.SuspendLayout();
+            pnlContent.AutoScroll = false;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            pnlContent.Controls.Add(
-                title);
+            TableLayoutPanel page = new TableLayoutPanel();
+            page.Dock = DockStyle.Fill;
+            page.Padding = new Padding(24, 22, 24, 16);
+            page.BackColor = Color.FromArgb(246, 249, 253);
+            page.ColumnCount = 1;
+            page.RowCount = 4;
+            page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 118F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
+            page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            pnlContent.Controls.Add(page);
 
-            Label lblAra =
-                new Label();
+            RoundedPanel headerCard = new RoundedPanel();
+            headerCard.Dock = DockStyle.Fill;
+            headerCard.Margin = new Padding(0, 0, 0, 12);
+            headerCard.Radius = 10;
+            headerCard.FillColor = Color.White;
+            headerCard.BorderColor = _border;
+            headerCard.BorderThickness = 1;
+            page.Controls.Add(headerCard, 0, 0);
 
-            lblAra.Text =
-                "Liste içinde ara";
+            Label title = new Label();
+            title.Text = "Ürün & Hizmet Yönetimi";
+            title.AutoSize = true;
+            title.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
+            title.ForeColor = _text;
+            title.Location = new Point(20, 14);
+            headerCard.Controls.Add(title);
 
-            lblAra.AutoSize =
-                true;
+            Label subtitle = new Label();
+            subtitle.Text = "Ürün kartlarını, satış fiyatlarını, KDV oranlarını ve stok durumunu tek ekrandan yönetin.";
+            subtitle.AutoSize = true;
+            subtitle.Font = new Font("Segoe UI", 9.5F);
+            subtitle.ForeColor = _muted;
+            subtitle.Location = new Point(22, 53);
+            headerCard.Controls.Add(subtitle);
 
-            lblAra.Font =
-                new Font(
-                    "Segoe UI",
-                    11.5F,
-                    FontStyle.Bold);
-
-            lblAra.ForeColor =
-                Color.Gray;
-
-            lblAra.Location =
-                new Point(
-                    28,
-                    65);
-
-            pnlContent.Controls.Add(
-                lblAra);
-
-            TextBox txtAra =
-                new TextBox();
-
-            txtAra.Location =
-                new Point(
-                    28,
-                    88);
-
-            txtAra.Size =
-                new Size(
-                    380,
-                    30);
-
-            pnlContent.Controls.Add(
-                txtAra);
-
-            Button btnYeniUrun =
-                MaviButon(
-                    "+ Yeni Ürün");
-
-            btnYeniUrun.Location =
-                new Point(
-                    940,
-                    82);
-
-            btnYeniUrun.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Right;
-
-            pnlContent.Controls.Add(
-                btnYeniUrun);
-
-            DataGridView grid =
-                TemelGrid();
-
-            grid.Location =
-                new Point(
-                    28,
-                    140);
-
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
-
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
-
-            DataGridViewTextBoxColumn favoriColumn =
-                new DataGridViewTextBoxColumn();
-
-            favoriColumn.Name =
-                "Favori";
-
-            favoriColumn.HeaderText =
-                "★";
-
-            favoriColumn.Width =
-                55;
-
-            favoriColumn.SortMode =
-                DataGridViewColumnSortMode.NotSortable;
-
-            grid.Columns.Add(
-                favoriColumn);
-
-            KolonEkle(
-                grid,
-                "StokKodu",
-                "Stok Kodu");
-
-            KolonEkle(
-                grid,
-                "Urun",
-                "Ürün / Hizmet");
-
-            KolonEkle(
-                grid,
-                "Kategori",
-                "Kategori");
-
-            KolonEkle(
-                grid,
-                "Birim",
-                "Birim");
-
-            KolonEkle(
-                grid,
-                "Fiyat",
-                "Satış Fiyatı");
-
-            KolonEkle(
-                grid,
-                "Kdv",
-                "KDV");
-
-            KolonEkle(
-                grid,
-                "Stok",
-                "Stok");
-
-            foreach (
-                UrunKaydi urun
-                in AppData.Urunler)
+            Button btnYeniUrun = MaviButon("+ Yeni Ürün");
+            btnYeniUrun.Size = new Size(142, 40);
+            btnYeniUrun.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            headerCard.Controls.Add(btnYeniUrun);
+            headerCard.Resize += delegate
             {
-                int index =
-                    grid.Rows.Add(
-                        urun.Favori
-                            ? "★"
-                            : "☆",
-                        urun.StokKodu,
-                        urun.UrunAdi,
-                        urun.Kategori,
-                        urun.Birim,
-                        urun.BirimFiyat.ToString("N2") +
-                        " TL",
-                        "%" +
-                        urun.KdvOrani.ToString("N0"),
-                        urun.Stok);
+                btnYeniUrun.Location = new Point(
+                    Math.Max(650, headerCard.ClientSize.Width - btnYeniUrun.Width - 20), 23);
+            };
 
-                grid.Rows[index].Tag =
-                    urun;
+            int toplamUrun = AppData.Urunler.Count;
+            int favori = AppData.Urunler.Count(x => x.Favori);
+            decimal ortalamaFiyat = toplamUrun == 0
+                ? 0M
+                : AppData.Urunler.Average(x => x.BirimFiyat);
+
+            TableLayoutPanel stats = new TableLayoutPanel();
+            stats.Dock = DockStyle.Fill;
+            stats.Margin = new Padding(0, 0, 0, 12);
+            stats.ColumnCount = 3;
+            stats.RowCount = 1;
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.334F));
+            page.Controls.Add(stats, 0, 1);
+
+            string[] statTitle = { "TOPLAM ÜRÜN / HİZMET", "FAVORİ KAYIT", "ORTALAMA SATIŞ FİYATI" };
+            string[] statValue = {
+                toplamUrun.ToString() + " Kayıt",
+                favori.ToString(),
+                ortalamaFiyat.ToString("N2") + " TL"
+            };
+            string[] statNote = {
+                "Aktif ürün ve hizmet kartları",
+                "Hızlı erişim için işaretlenenler",
+                "Mevcut kayıtların ortalama birim fiyatı"
+            };
+
+            for (int i = 0; i < 3; i++)
+            {
+                RoundedPanel card = new RoundedPanel();
+                card.Dock = DockStyle.Fill;
+                card.Margin = i == 0
+                    ? new Padding(0, 0, 6, 0)
+                    : (i == 1 ? new Padding(3, 0, 3, 0) : new Padding(6, 0, 0, 0));
+                card.Radius = 9;
+                card.FillColor = Color.White;
+                card.BorderColor = _border;
+                card.BorderThickness = 1;
+
+                Label cap = new Label();
+                cap.Text = statTitle[i];
+                cap.AutoSize = true;
+                cap.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+                cap.ForeColor = _muted;
+                cap.Location = new Point(18, 16);
+                card.Controls.Add(cap);
+
+                Label value = new Label();
+                value.Text = statValue[i];
+                value.AutoSize = true;
+                value.Font = new Font("Segoe UI", 17F, FontStyle.Bold);
+                value.ForeColor = i == 2 ? _primary : _text;
+                value.Location = new Point(17, 43);
+                card.Controls.Add(value);
+
+                Label note = new Label();
+                note.Text = statNote[i];
+                note.AutoSize = true;
+                note.Font = new Font("Segoe UI", 8.5F);
+                note.ForeColor = _muted;
+                note.Location = new Point(19, 78);
+                card.Controls.Add(note);
+
+                stats.Controls.Add(card, i, 0);
             }
 
-            // -----------------------------------------------------
-            // FAVORİ TIKLAMA
-            // -----------------------------------------------------
+            RoundedPanel filterCard = new RoundedPanel();
+            filterCard.Dock = DockStyle.Fill;
+            filterCard.Margin = new Padding(0, 0, 0, 12);
+            filterCard.Radius = 9;
+            filterCard.FillColor = Color.White;
+            filterCard.BorderColor = _border;
+            filterCard.BorderThickness = 1;
+            page.Controls.Add(filterCard, 0, 2);
 
-            grid.CellClick +=
-                delegate (
-                    object sender,
-                    DataGridViewCellEventArgs e)
-                {
-                    if (e.RowIndex < 0)
-                    {
-                        return;
-                    }
+            Label lblAra = new Label();
+            lblAra.Text = "Ürün ara";
+            lblAra.AutoSize = true;
+            lblAra.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblAra.ForeColor = _muted;
+            lblAra.Location = new Point(18, 12);
+            filterCard.Controls.Add(lblAra);
 
-                    if (e.ColumnIndex !=
-                        grid.Columns[
-                            "Favori"].Index)
-                    {
-                        return;
-                    }
+            TextBox txtAra = new TextBox();
+            txtAra.Location = new Point(18, 34);
+            txtAra.Size = new Size(410, 30);
+            txtAra.Font = new Font("Segoe UI", 9.5F);
+            CueBanner(txtAra, "Stok kodu, ürün adı, kategori veya birim ara...");
+            filterCard.Controls.Add(txtAra);
 
-                    UrunKaydi urun =
-                        grid.Rows[
-                            e.RowIndex]
-                            .Tag
-                        as UrunKaydi;
+            Label recordCount = new Label();
+            recordCount.Text = toplamUrun.ToString() + " kayıt listeleniyor";
+            recordCount.AutoSize = true;
+            recordCount.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            recordCount.ForeColor = _muted;
+            recordCount.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            filterCard.Controls.Add(recordCount);
+            filterCard.Resize += delegate
+            {
+                recordCount.Location = new Point(
+                    Math.Max(500, filterCard.ClientSize.Width - recordCount.Width - 20), 38);
+            };
 
-                    if (urun == null)
-                    {
-                        return;
-                    }
+            RoundedPanel gridCard = new RoundedPanel();
+            gridCard.Dock = DockStyle.Fill;
+            gridCard.Margin = new Padding(0);
+            gridCard.Padding = new Padding(10);
+            gridCard.Radius = 10;
+            gridCard.FillColor = Color.White;
+            gridCard.BorderColor = _border;
+            gridCard.BorderThickness = 1;
+            page.Controls.Add(gridCard, 0, 3);
 
-                    urun.Favori =
-                        !urun.Favori;
+            DataGridView grid = TemelGrid();
+            grid.Dock = DockStyle.Fill;
+            grid.RowTemplate.Height = 42;
+            grid.ColumnHeadersHeight = 42;
 
-                    grid.Rows[
-                        e.RowIndex]
-                        .Cells[
-                            "Favori"]
-                        .Value =
-                        urun.Favori
-                            ? "★"
-                            : "☆";
-                };
+            DataGridViewTextBoxColumn favoriColumn = new DataGridViewTextBoxColumn();
+            favoriColumn.Name = "Favori";
+            favoriColumn.HeaderText = "★";
+            favoriColumn.Width = 55;
+            favoriColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            favoriColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            favoriColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns.Add(favoriColumn);
 
-            txtAra.TextChanged +=
-                delegate
-                {
-                    ListeFiltrele(
-                        grid,
-                        txtAra.Text);
-                };
+            KolonEkle(grid, "StokKodu", "STOK KODU");
+            KolonEkle(grid, "Urun", "ÜRÜN / HİZMET");
+            KolonEkle(grid, "Kategori", "KATEGORİ");
+            KolonEkle(grid, "Birim", "BİRİM");
+            KolonEkle(grid, "Fiyat", "SATIŞ FİYATI");
+            KolonEkle(grid, "Kdv", "KDV");
+            KolonEkle(grid, "Stok", "STOK");
 
-            pnlContent.Controls.Add(
-                grid);
+            grid.Columns["StokKodu"].FillWeight = 85;
+            grid.Columns["Urun"].FillWeight = 155;
+            grid.Columns["Kategori"].FillWeight = 95;
+            grid.Columns["Birim"].FillWeight = 65;
+            grid.Columns["Fiyat"].FillWeight = 90;
+            grid.Columns["Kdv"].FillWeight = 55;
+            grid.Columns["Stok"].FillWeight = 65;
+            grid.Columns["Fiyat"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            grid.Columns["Kdv"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            grid.Columns["Stok"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+            foreach (UrunKaydi urun in AppData.Urunler)
+            {
+                int index = grid.Rows.Add(
+                    urun.Favori ? "★" : "☆",
+                    urun.StokKodu,
+                    urun.UrunAdi,
+                    urun.Kategori,
+                    urun.Birim,
+                    urun.BirimFiyat.ToString("N2") + " TL",
+                    "%" + urun.KdvOrani.ToString("N0"),
+                    urun.Stok);
+
+                grid.Rows[index].Tag = urun;
+            }
+
+            grid.CellClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0) return;
+                if (e.ColumnIndex != grid.Columns["Favori"].Index) return;
+
+                UrunKaydi urun = grid.Rows[e.RowIndex].Tag as UrunKaydi;
+                if (urun == null) return;
+
+                urun.Favori = !urun.Favori;
+                grid.Rows[e.RowIndex].Cells["Favori"].Value =
+                    urun.Favori ? "★" : "☆";
+            };
+
+            txtAra.TextChanged += delegate
+            {
+                ListeFiltrele(grid, txtAra.Text);
+                int visible = 0;
+                foreach (DataGridViewRow row in grid.Rows)
+                    if (row.Visible) visible++;
+                recordCount.Text = visible.ToString() + " kayıt listeleniyor";
+            };
+
+            gridCard.Controls.Add(grid);
+            pnlContent.ResumeLayout(true);
         }
 
         // =========================================================
@@ -3799,75 +4224,39 @@ namespace UrunFaturaYonetimi
             DateTime? baslangic,
             DateTime? bitis)
         {
-            SayfayiTemizle(
-                "Faturalar");
+            SayfayiTemizle("Faturalar");
 
-            Label title =
-                SayfaListeBasligi(
-                    "Fatura Listesi");
-
-            pnlContent.Controls.Add(
-                title);
+            Label title = SayfaListeBasligi("Fatura Listesi");
+            pnlContent.Controls.Add(title);
 
             Label filtreBilgisi = null;
-
-            if (!string.IsNullOrWhiteSpace(cariAdi) ||
-                baslangic.HasValue ||
-                bitis.HasValue)
+            if (!string.IsNullOrWhiteSpace(cariAdi) || baslangic.HasValue || bitis.HasValue)
             {
                 filtreBilgisi = new Label();
                 filtreBilgisi.AutoSize = true;
                 filtreBilgisi.ForeColor = _primary;
-                filtreBilgisi.Font =
-                    new Font(
-                        "Segoe UI",
-                        9F,
-                        FontStyle.Bold);
+                filtreBilgisi.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
 
                 string metin = "AI filtresi: ";
-
-                if (!string.IsNullOrWhiteSpace(cariAdi))
-                {
-                    metin += cariAdi;
-                }
-
+                if (!string.IsNullOrWhiteSpace(cariAdi)) metin += cariAdi;
                 if (baslangic.HasValue)
-                {
-                    metin +=
-                        (metin.EndsWith(": ") ? "" : " • ") +
-                        baslangic.Value.ToString("dd.MM.yyyy");
-                }
-
+                    metin += (metin.EndsWith(": ") ? "" : " • ") + baslangic.Value.ToString("dd.MM.yyyy");
                 if (bitis.HasValue)
-                {
-                    metin +=
-                        " - " +
-                        bitis.Value.AddDays(-1).ToString("dd.MM.yyyy");
-                }
+                    metin += " - " + bitis.Value.AddDays(-1).ToString("dd.MM.yyyy");
 
                 filtreBilgisi.Text = metin;
                 filtreBilgisi.Location = new Point(28, 62);
                 pnlContent.Controls.Add(filtreBilgisi);
             }
 
-            DataGridView grid =
-                TemelGrid();
-
-            grid.Location =
-                new Point(
-                    28,
-                    95);
-
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
-
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
+            DataGridView grid = TemelGrid();
+            grid.Location = new Point(28, 95);
+            grid.Size = new Size(
+                Math.Max(900, pnlContent.ClientSize.Width - 48),
+                Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
+            grid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.MultiSelect = false;
 
             KolonEkle(grid, "FaturaNo", "Fatura No");
             KolonEkle(grid, "Tarih", "Tarih");
@@ -3877,38 +4266,24 @@ namespace UrunFaturaYonetimi
             KolonEkle(grid, "Tutar", "Genel Toplam");
             KolonEkle(grid, "Durum", "Durum");
 
+            DataGridViewButtonColumn detay = new DataGridViewButtonColumn();
+            detay.Name = "Detay";
+            detay.HeaderText = "İşlem";
+            detay.Text = "Detayı Aç";
+            detay.UseColumnTextForButtonValue = true;
+            detay.Width = 125;
+            detay.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            detay.FlatStyle = FlatStyle.Flat;
+            grid.Columns.Add(detay);
+
             foreach (FaturaKaydi fatura in AppData.Faturalar)
             {
                 bool uygun = true;
-
                 if (!string.IsNullOrWhiteSpace(cariAdi))
-                {
-                    uygun =
-                        fatura.CariAdi.IndexOf(
-                            cariAdi,
-                            StringComparison.CurrentCultureIgnoreCase) >= 0;
-                }
-
-                if (uygun &&
-                    baslangic.HasValue)
-                {
-                    uygun =
-                        fatura.Tarih >=
-                        baslangic.Value;
-                }
-
-                if (uygun &&
-                    bitis.HasValue)
-                {
-                    uygun =
-                        fatura.Tarih <
-                        bitis.Value;
-                }
-
-                if (!uygun)
-                {
-                    continue;
-                }
+                    uygun = fatura.CariAdi.IndexOf(cariAdi, StringComparison.CurrentCultureIgnoreCase) >= 0;
+                if (uygun && baslangic.HasValue) uygun = fatura.Tarih >= baslangic.Value;
+                if (uygun && bitis.HasValue) uygun = fatura.Tarih < bitis.Value;
+                if (!uygun) continue;
 
                 grid.Rows.Add(
                     fatura.FaturaNo,
@@ -3916,14 +4291,424 @@ namespace UrunFaturaYonetimi
                     fatura.CariAdi,
                     fatura.CariTipi,
                     fatura.BelgeTipi,
-                    fatura.GenelToplam.ToString("N2") +
-                    " TL",
-                    fatura.Durum);
+                    fatura.GenelToplam.ToString("N2") + " TL",
+                    fatura.Durum,
+                    "Detayı Aç");
             }
 
-            pnlContent.Controls.Add(
-                grid);
+            grid.CellContentClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0 || grid.Columns[e.ColumnIndex].Name != "Detay") return;
+                string no = Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value);
+                FaturaDetayPenceresiAc(no);
+            };
+
+            grid.CellDoubleClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0) return;
+                string no = Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value);
+                FaturaDetayPenceresiAc(no);
+            };
+
+            pnlContent.Controls.Add(grid);
         }
+
+        private void FaturaDetayPenceresiAc(string faturaNo)
+        {
+            if (string.IsNullOrWhiteSpace(faturaNo)) return;
+
+            FaturaKaydi appFatura = AppData.Faturalar.FirstOrDefault(
+                f => string.Equals(f.FaturaNo, faturaNo, StringComparison.CurrentCultureIgnoreCase));
+
+            string cari = appFatura == null ? "" : appFatura.CariAdi;
+            DateTime tarih = appFatura == null ? DateTime.Today : appFatura.Tarih;
+            decimal genelToplam = appFatura == null ? 0m : appFatura.GenelToplam;
+            string belgeTipi = appFatura == null ? "" : appFatura.BelgeTipi;
+            string durum = appFatura == null ? "" : appFatura.Durum;
+            int invoiceId = 0;
+
+            System.Collections.Generic.List<object[]> kalemler =
+                new System.Collections.Generic.List<object[]>();
+
+            try
+            {
+                const string cs = @"Server=(localdb)\MSSQLLocalDB;Database=UrunFaturaYonetimiDb;Trusted_Connection=True;TrustServerCertificate=True;";
+                using (SqlConnection conn = new SqlConnection(cs))
+                {
+                    conn.Open();
+                    using (SqlCommand cmd = new SqlCommand(@"
+SELECT TOP 1 Id, InvoiceDate, CustomerTitle, TotalAmount
+FROM dbo.Invoices
+WHERE InvoiceNumber = @no
+ORDER BY Id DESC;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@no", faturaNo);
+                        using (SqlDataReader rd = cmd.ExecuteReader())
+                        {
+                            if (rd.Read())
+                            {
+                                invoiceId = Convert.ToInt32(rd["Id"]);
+                                tarih = Convert.ToDateTime(rd["InvoiceDate"]);
+                                cari = Convert.ToString(rd["CustomerTitle"]);
+                                genelToplam = Convert.ToDecimal(rd["TotalAmount"]);
+                            }
+                        }
+                    }
+
+                    if (invoiceId > 0)
+                    {
+                        using (SqlCommand cmd = new SqlCommand(@"
+SELECT
+    d.Id,
+    ISNULL(p.Name, 'Ürün / Hizmet') AS ProductName,
+    ISNULL(p.Category, '') AS Category,
+    d.Quantity,
+    d.UnitPrice,
+    d.LineTotal
+FROM dbo.InvoiceDetails d
+LEFT JOIN dbo.Products p ON p.Id = d.ProductId
+WHERE d.InvoiceId = @id
+ORDER BY d.Id;", conn))
+                        {
+                            cmd.Parameters.AddWithValue("@id", invoiceId);
+                            using (SqlDataReader rd = cmd.ExecuteReader())
+                            {
+                                while (rd.Read())
+                                {
+                                    kalemler.Add(new object[]
+                                    {
+                                        Convert.ToString(rd["ProductName"]),
+                                        Convert.ToString(rd["Category"]),
+                                        Convert.ToInt32(rd["Quantity"]),
+                                        Convert.ToDecimal(rd["UnitPrice"]),
+                                        Convert.ToDecimal(rd["LineTotal"])
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Fatura detayı veritabanından okunamadı.\n\n" + ex.Message,
+                    "NEXORA - Fatura Detayı",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
+            decimal kalemToplami = kalemler.Sum(k => Convert.ToDecimal(k[4]));
+
+            Form detayForm = new Form();
+            detayForm.Text = "NEXORA • Fatura Detayı • " + faturaNo;
+            detayForm.StartPosition = FormStartPosition.CenterParent;
+            detayForm.Size = new Size(1120, 760);
+            detayForm.MinimumSize = new Size(940, 650);
+            detayForm.BackColor = Color.FromArgb(244, 247, 251);
+            detayForm.Font = new Font("Segoe UI", 9F);
+            detayForm.FormBorderStyle = FormBorderStyle.Sizable;
+
+            Panel header = new Panel();
+            header.Dock = DockStyle.Top;
+            header.Height = 104;
+            header.BackColor = Color.White;
+            detayForm.Controls.Add(header);
+
+            Label lblUst = new Label();
+            lblUst.Text = "FATURALAR  /  FATURA DETAYI";
+            lblUst.AutoSize = true;
+            lblUst.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            lblUst.ForeColor = Color.FromArgb(111, 124, 141);
+            lblUst.Location = new Point(30, 18);
+            header.Controls.Add(lblUst);
+
+            Label lblBaslik = new Label();
+            lblBaslik.Text = "Fatura Detayı";
+            lblBaslik.AutoSize = true;
+            lblBaslik.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
+            lblBaslik.ForeColor = Color.FromArgb(25, 37, 55);
+            lblBaslik.Location = new Point(27, 40);
+            header.Controls.Add(lblBaslik);
+
+            Label lblNo = new Label();
+            lblNo.Text = faturaNo;
+            lblNo.AutoSize = true;
+            lblNo.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            lblNo.ForeColor = _primary;
+            lblNo.Location = new Point(205, 54);
+            header.Controls.Add(lblNo);
+
+            Label durumBadge = new Label();
+            durumBadge.Text = "  " + (string.IsNullOrWhiteSpace(durum) ? "Kayıtlı" : durum) + "  ";
+            durumBadge.AutoSize = true;
+            durumBadge.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            durumBadge.ForeColor = Color.FromArgb(21, 128, 61);
+            durumBadge.BackColor = Color.FromArgb(232, 248, 238);
+            durumBadge.Padding = new Padding(8, 5, 8, 5);
+            durumBadge.Location = new Point(30, 78);
+            header.Controls.Add(durumBadge);
+
+            Button btnKapat = new Button();
+            btnKapat.Text = "Kapat";
+            btnKapat.Size = new Size(96, 36);
+            btnKapat.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnKapat.Location = new Point(detayForm.ClientSize.Width - 126, 32);
+            btnKapat.FlatStyle = FlatStyle.Flat;
+            btnKapat.FlatAppearance.BorderColor = Color.FromArgb(214, 221, 230);
+            btnKapat.BackColor = Color.White;
+            btnKapat.ForeColor = Color.FromArgb(50, 61, 76);
+            btnKapat.Cursor = Cursors.Hand;
+            btnKapat.Click += delegate { detayForm.Close(); };
+            header.Controls.Add(btnKapat);
+
+            Panel body = new Panel();
+            body.Dock = DockStyle.Fill;
+            body.AutoScroll = true;
+            body.BackColor = Color.FromArgb(244, 247, 251);
+            detayForm.Controls.Add(body);
+            body.BringToFront();
+            header.BringToFront();
+
+            Panel bilgiCard = new Panel();
+            bilgiCard.BackColor = Color.White;
+            bilgiCard.Location = new Point(30, 26);
+            bilgiCard.Size = new Size(1038, 142);
+            bilgiCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            body.Controls.Add(bilgiCard);
+
+            Label kartBaslik = new Label();
+            kartBaslik.Text = "Fatura Bilgileri";
+            kartBaslik.AutoSize = true;
+            kartBaslik.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            kartBaslik.ForeColor = Color.FromArgb(28, 40, 57);
+            kartBaslik.Location = new Point(22, 17);
+            bilgiCard.Controls.Add(kartBaslik);
+
+            Label lblCariEtiket = new Label();
+            lblCariEtiket.Text = "CARİ / ALICI";
+            lblCariEtiket.AutoSize = true;
+            lblCariEtiket.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            lblCariEtiket.ForeColor = Color.FromArgb(120, 132, 148);
+            lblCariEtiket.Location = new Point(22, 55);
+            bilgiCard.Controls.Add(lblCariEtiket);
+
+            Label lblCari = new Label();
+            lblCari.Text = string.IsNullOrWhiteSpace(cari) ? "—" : cari;
+            lblCari.AutoEllipsis = true;
+            lblCari.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            lblCari.ForeColor = Color.FromArgb(28, 40, 57);
+            lblCari.Location = new Point(22, 76);
+            lblCari.Size = new Size(370, 27);
+            bilgiCard.Controls.Add(lblCari);
+
+            Label lblTarihEtiket = new Label();
+            lblTarihEtiket.Text = "FATURA TARİHİ";
+            lblTarihEtiket.AutoSize = true;
+            lblTarihEtiket.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            lblTarihEtiket.ForeColor = Color.FromArgb(120, 132, 148);
+            lblTarihEtiket.Location = new Point(425, 55);
+            bilgiCard.Controls.Add(lblTarihEtiket);
+
+            Label lblTarih = new Label();
+            lblTarih.Text = tarih.ToString("dd.MM.yyyy");
+            lblTarih.AutoSize = true;
+            lblTarih.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+            lblTarih.ForeColor = Color.FromArgb(28, 40, 57);
+            lblTarih.Location = new Point(425, 77);
+            bilgiCard.Controls.Add(lblTarih);
+
+            Label lblBelgeEtiket = new Label();
+            lblBelgeEtiket.Text = "BELGE TİPİ";
+            lblBelgeEtiket.AutoSize = true;
+            lblBelgeEtiket.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            lblBelgeEtiket.ForeColor = Color.FromArgb(120, 132, 148);
+            lblBelgeEtiket.Location = new Point(620, 55);
+            bilgiCard.Controls.Add(lblBelgeEtiket);
+
+            Label lblBelge = new Label();
+            lblBelge.Text = string.IsNullOrWhiteSpace(belgeTipi) ? "E-Fatura" : belgeTipi;
+            lblBelge.AutoSize = true;
+            lblBelge.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+            lblBelge.ForeColor = Color.FromArgb(28, 40, 57);
+            lblBelge.Location = new Point(620, 77);
+            bilgiCard.Controls.Add(lblBelge);
+
+            Label lblToplamEtiket = new Label();
+            lblToplamEtiket.Text = "GENEL TOPLAM";
+            lblToplamEtiket.AutoSize = true;
+            lblToplamEtiket.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            lblToplamEtiket.ForeColor = Color.FromArgb(120, 132, 148);
+            lblToplamEtiket.Location = new Point(820, 55);
+            bilgiCard.Controls.Add(lblToplamEtiket);
+
+            Label lblToplam = new Label();
+            lblToplam.Text = genelToplam.ToString("N2") + " TL";
+            lblToplam.AutoSize = true;
+            lblToplam.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
+            lblToplam.ForeColor = _primary;
+            lblToplam.Location = new Point(820, 75);
+            bilgiCard.Controls.Add(lblToplam);
+
+            Panel kalemCard = new Panel();
+            kalemCard.BackColor = Color.White;
+            kalemCard.Location = new Point(30, 188);
+            kalemCard.Size = new Size(1038, 365);
+            kalemCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            body.Controls.Add(kalemCard);
+
+            Label kalemBaslik = new Label();
+            kalemBaslik.Text = "Fatura Kalemleri";
+            kalemBaslik.AutoSize = true;
+            kalemBaslik.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+            kalemBaslik.ForeColor = Color.FromArgb(28, 40, 57);
+            kalemBaslik.Location = new Point(22, 18);
+            kalemCard.Controls.Add(kalemBaslik);
+
+            Label kalemAdet = new Label();
+            kalemAdet.Text = kalemler.Count + " kalem";
+            kalemAdet.AutoSize = true;
+            kalemAdet.Font = new Font("Segoe UI", 9F);
+            kalemAdet.ForeColor = Color.FromArgb(111, 124, 141);
+            kalemAdet.Location = new Point(22, 46);
+            kalemCard.Controls.Add(kalemAdet);
+
+            DataGridView dg = new DataGridView();
+            dg.Location = new Point(22, 76);
+            dg.Size = new Size(994, 265);
+            dg.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            dg.AllowUserToAddRows = false;
+            dg.AllowUserToDeleteRows = false;
+            dg.AllowUserToResizeRows = false;
+            dg.ReadOnly = true;
+            dg.RowHeadersVisible = false;
+            dg.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dg.MultiSelect = false;
+            dg.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dg.BackgroundColor = Color.White;
+            dg.BorderStyle = BorderStyle.None;
+            dg.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dg.GridColor = Color.FromArgb(232, 236, 242);
+            dg.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dg.ColumnHeadersHeight = 42;
+            dg.EnableHeadersVisualStyles = false;
+            dg.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(246, 248, 251);
+            dg.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(70, 82, 98);
+            dg.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dg.DefaultCellStyle.BackColor = Color.White;
+            dg.DefaultCellStyle.ForeColor = Color.FromArgb(39, 50, 65);
+            dg.DefaultCellStyle.SelectionBackColor = Color.FromArgb(235, 243, 255);
+            dg.DefaultCellStyle.SelectionForeColor = Color.FromArgb(25, 70, 135);
+            dg.DefaultCellStyle.Padding = new Padding(5, 0, 5, 0);
+            dg.RowTemplate.Height = 40;
+
+            dg.Columns.Add("Sira", "#");
+            dg.Columns.Add("Urun", "Ürün / Hizmet");
+            dg.Columns.Add("Kategori", "Kategori");
+            dg.Columns.Add("Miktar", "Miktar");
+            dg.Columns.Add("BirimFiyat", "Birim Fiyat");
+            dg.Columns.Add("SatirToplam", "Satır Toplamı");
+            dg.Columns["Sira"].FillWeight = 24;
+            dg.Columns["Urun"].FillWeight = 155;
+            dg.Columns["Kategori"].FillWeight = 80;
+            dg.Columns["Miktar"].FillWeight = 45;
+            dg.Columns["BirimFiyat"].FillWeight = 70;
+            dg.Columns["SatirToplam"].FillWeight = 75;
+            dg.Columns["Miktar"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dg.Columns["BirimFiyat"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dg.Columns["SatirToplam"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
+            for (int i = 0; i < kalemler.Count; i++)
+            {
+                object[] k = kalemler[i];
+                dg.Rows.Add(
+                    (i + 1).ToString(),
+                    Convert.ToString(k[0]),
+                    string.IsNullOrWhiteSpace(Convert.ToString(k[1])) ? "—" : Convert.ToString(k[1]),
+                    Convert.ToInt32(k[2]).ToString(),
+                    Convert.ToDecimal(k[3]).ToString("N2") + " TL",
+                    Convert.ToDecimal(k[4]).ToString("N2") + " TL");
+            }
+            kalemCard.Controls.Add(dg);
+
+            if (kalemler.Count == 0)
+            {
+                Panel empty = new Panel();
+                empty.BackColor = Color.White;
+                empty.Location = new Point(22, 76);
+                empty.Size = new Size(994, 265);
+                empty.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+                kalemCard.Controls.Add(empty);
+                empty.BringToFront();
+
+                Label emptyTitle = new Label();
+                emptyTitle.Text = "Bu faturanın kalem kaydı bulunamadı";
+                emptyTitle.AutoSize = true;
+                emptyTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+                emptyTitle.ForeColor = Color.FromArgb(45, 56, 70);
+                emptyTitle.Location = new Point(30, 72);
+                empty.Controls.Add(emptyTitle);
+
+                Label emptyText = new Label();
+                emptyText.Text = "Bu kayıt, InvoiceDetails kaydı tutulmadan önce oluşturulmuş olabilir.\r\nYeni oluşturulan faturaların ürün/hizmet kalemleri burada ayrıntılı görünecek.";
+                emptyText.AutoSize = true;
+                emptyText.Font = new Font("Segoe UI", 9.5F);
+                emptyText.ForeColor = Color.FromArgb(105, 117, 132);
+                emptyText.Location = new Point(30, 105);
+                empty.Controls.Add(emptyText);
+            }
+
+            Panel toplamCard = new Panel();
+            toplamCard.BackColor = Color.White;
+            toplamCard.Location = new Point(30, 573);
+            toplamCard.Size = new Size(1038, 104);
+            toplamCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            body.Controls.Add(toplamCard);
+
+            Label toplamBaslik = new Label();
+            toplamBaslik.Text = "Tutar Özeti";
+            toplamBaslik.AutoSize = true;
+            toplamBaslik.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+            toplamBaslik.ForeColor = Color.FromArgb(28, 40, 57);
+            toplamBaslik.Location = new Point(22, 18);
+            toplamCard.Controls.Add(toplamBaslik);
+
+            Label lblKalemToplami = new Label();
+            lblKalemToplami.Text = "Kalem Toplamı\r\n" + (kalemler.Count == 0 ? "—" : kalemToplami.ToString("N2") + " TL");
+            lblKalemToplami.AutoSize = true;
+            lblKalemToplami.Font = new Font("Segoe UI", 9.5F);
+            lblKalemToplami.ForeColor = Color.FromArgb(75, 88, 104);
+            lblKalemToplami.Location = new Point(620, 18);
+            toplamCard.Controls.Add(lblKalemToplami);
+
+            Label lblGenel = new Label();
+            lblGenel.Text = "GENEL TOPLAM\r\n" + genelToplam.ToString("N2") + " TL";
+            lblGenel.AutoSize = true;
+            lblGenel.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            lblGenel.ForeColor = _primary;
+            lblGenel.Location = new Point(820, 18);
+            toplamCard.Controls.Add(lblGenel);
+
+            Action detayLayout = delegate
+            {
+                int w = Math.Max(850, body.ClientSize.Width - 60);
+                bilgiCard.Width = w;
+                kalemCard.Width = w;
+                toplamCard.Width = w;
+                dg.Width = Math.Max(760, kalemCard.ClientSize.Width - 44);
+                lblToplamEtiket.Left = Math.Max(760, bilgiCard.ClientSize.Width - 218);
+                lblToplam.Left = lblToplamEtiket.Left;
+                lblBelgeEtiket.Left = Math.Max(575, bilgiCard.ClientSize.Width - 418);
+                lblBelge.Left = lblBelgeEtiket.Left;
+                lblKalemToplami.Left = Math.Max(570, toplamCard.ClientSize.Width - 418);
+                lblGenel.Left = Math.Max(760, toplamCard.ClientSize.Width - 218);
+            };
+            body.Resize += delegate { detayLayout(); };
+            detayLayout();
+
+            detayForm.ShowDialog(this);
+        }
+
 
         // =========================================================
         // KULLANICILAR
@@ -3931,89 +4716,156 @@ namespace UrunFaturaYonetimi
 
         private void KullanicilarAc()
         {
-            SayfayiTemizle(
-                "Kullanıcılar");
+            SayfayiTemizle("Kullanıcılar");
 
-            Label title =
-                SayfaListeBasligi(
-                    "Sistem Kullanıcıları");
+            pnlContent.AutoScroll = false;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            pnlContent.Controls.Add(
-                title);
+            TableLayoutPanel page = new TableLayoutPanel();
+            page.Dock = DockStyle.Fill;
+            page.Padding = new Padding(24, 22, 24, 16);
+            page.BackColor = Color.FromArgb(246, 249, 253);
+            page.ColumnCount = 1;
+            page.RowCount = 3;
+            page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 100F));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 118F));
+            page.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            pnlContent.Controls.Add(page);
 
-            Button btnYeni =
-                MaviButon(
-                    "+ Yeni Kullanıcı");
+            RoundedPanel header = new RoundedPanel();
+            header.Dock = DockStyle.Fill;
+            header.Margin = new Padding(0, 0, 0, 12);
+            header.Radius = 10;
+            header.FillColor = Color.White;
+            header.BorderColor = _border;
+            header.BorderThickness = 1;
+            page.Controls.Add(header, 0, 0);
 
-            btnYeni.Location =
-                new Point(
-                    940,
-                    30);
+            Label title = new Label();
+            title.Text = "Kullanıcı Yönetimi";
+            title.AutoSize = true;
+            title.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
+            title.ForeColor = _text;
+            title.Location = new Point(20, 14);
+            header.Controls.Add(title);
 
-            btnYeni.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Right;
+            Label subtitle = new Label();
+            subtitle.Text = "Sisteme erişebilen kullanıcı hesaplarını ve rollerini yönetin.";
+            subtitle.AutoSize = true;
+            subtitle.Font = new Font("Segoe UI", 9.5F);
+            subtitle.ForeColor = _muted;
+            subtitle.Location = new Point(22, 53);
+            header.Controls.Add(subtitle);
 
-            btnYeni.Click +=
-                delegate
-                {
-                    RegisterForm form =
-                        new RegisterForm(_userService);
+            Button btnYeni = MaviButon("+ Yeni Kullanıcı");
+            btnYeni.Size = new Size(150, 40);
+            btnYeni.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnYeni.Click += delegate
+            {
+                RegisterForm form = new RegisterForm(_userService);
+                form.ShowDialog(this);
+            };
+            header.Controls.Add(btnYeni);
+            header.Resize += delegate
+            {
+                btnYeni.Location = new Point(
+                    Math.Max(650, header.ClientSize.Width - btnYeni.Width - 20), 23);
+            };
 
-                    form.ShowDialog(
-                        this);
-                };
+            TableLayoutPanel stats = new TableLayoutPanel();
+            stats.Dock = DockStyle.Fill;
+            stats.Margin = new Padding(0, 0, 0, 12);
+            stats.ColumnCount = 3;
+            stats.RowCount = 1;
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.334F));
+            page.Controls.Add(stats, 0, 1);
 
-            pnlContent.Controls.Add(
-                btnYeni);
+            string[] st = { "AKTİF OTURUM", "SİSTEM ROLÜ", "HESAP DURUMU" };
+            string[] sv = {
+                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Aktif Kullanıcı" : _kullaniciAdi,
+                "Yönetici",
+                "Aktif"
+            };
+            string[] sn = {
+                "Şu anda uygulamada açık olan hesap",
+                "Mevcut kullanıcı ekranındaki rol",
+                "Sistem erişim durumu"
+            };
 
-            DataGridView grid =
-                TemelGrid();
+            for (int i = 0; i < 3; i++)
+            {
+                RoundedPanel card = new RoundedPanel();
+                card.Dock = DockStyle.Fill;
+                card.Margin = i == 0
+                    ? new Padding(0, 0, 6, 0)
+                    : (i == 1 ? new Padding(3, 0, 3, 0) : new Padding(6, 0, 0, 0));
+                card.Radius = 9;
+                card.FillColor = Color.White;
+                card.BorderColor = _border;
+                card.BorderThickness = 1;
 
-            grid.Location =
-                new Point(
-                    28,
-                    90);
+                Label cap = new Label();
+                cap.Text = st[i];
+                cap.AutoSize = true;
+                cap.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+                cap.ForeColor = _muted;
+                cap.Location = new Point(18, 16);
+                card.Controls.Add(cap);
 
-            grid.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
+                Label value = new Label();
+                value.Text = sv[i];
+                value.AutoSize = true;
+                value.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
+                value.ForeColor = i == 2 ? Color.FromArgb(21, 128, 61) : _text;
+                value.Location = new Point(17, 43);
+                card.Controls.Add(value);
 
-            grid.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
+                Label note = new Label();
+                note.Text = sn[i];
+                note.AutoSize = true;
+                note.Font = new Font("Segoe UI", 8.5F);
+                note.ForeColor = _muted;
+                note.Location = new Point(19, 79);
+                card.Controls.Add(note);
 
-            KolonEkle(
-                grid,
-                "AdSoyad",
-                "Ad Soyad");
+                stats.Controls.Add(card, i, 0);
+            }
 
-            KolonEkle(
-                grid,
-                "KullaniciAdi",
-                "Kullanıcı Adı");
+            RoundedPanel gridCard = new RoundedPanel();
+            gridCard.Dock = DockStyle.Fill;
+            gridCard.Margin = new Padding(0);
+            gridCard.Padding = new Padding(12);
+            gridCard.Radius = 10;
+            gridCard.FillColor = Color.White;
+            gridCard.BorderColor = _border;
+            gridCard.BorderThickness = 1;
+            page.Controls.Add(gridCard, 0, 2);
 
-            KolonEkle(
-                grid,
-                "Rol",
-                "Rol");
+            DataGridView grid = TemelGrid();
+            grid.Dock = DockStyle.Fill;
+            grid.RowTemplate.Height = 44;
+            grid.ColumnHeadersHeight = 42;
 
-            KolonEkle(
-                grid,
-                "Durum",
-                "Durum");
+            KolonEkle(grid, "AdSoyad", "AD SOYAD");
+            KolonEkle(grid, "KullaniciAdi", "KULLANICI ADI");
+            KolonEkle(grid, "Rol", "ROL");
+            KolonEkle(grid, "Durum", "DURUM");
+
+            grid.Columns["AdSoyad"].FillWeight = 130;
+            grid.Columns["KullaniciAdi"].FillWeight = 100;
+            grid.Columns["Rol"].FillWeight = 80;
+            grid.Columns["Durum"].FillWeight = 70;
 
             grid.Rows.Add(
                 "Sistem Yöneticisi",
-                "admin",
+                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "admin" : _kullaniciAdi,
                 "Yönetici",
                 "Aktif");
 
-            pnlContent.Controls.Add(
-                grid);
+            gridCard.Controls.Add(grid);
         }
 
         // =========================================================
@@ -4022,148 +4874,253 @@ namespace UrunFaturaYonetimi
 
         private void AyarlarAc()
         {
-            SayfayiTemizle(
-                "Ayarlar");
+            SayfayiTemizle("Ayarlar");
 
-            Panel card =
-                KartOlustur();
+            pnlContent.AutoScroll = true;
+            pnlContent.BackColor = Color.FromArgb(246, 249, 253);
 
-            card.Location =
-                new Point(
-                    28,
-                    25);
+            Panel page = new Panel();
+            page.Location = new Point(0, 0);
+            page.Size = new Size(Math.Max(1040, pnlContent.ClientSize.Width), 790);
+            page.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            page.BackColor = Color.FromArgb(246, 249, 253);
+            pnlContent.Controls.Add(page);
 
-            card.Size =
-                new Size(
-                    Math.Max(900, pnlContent.ClientSize.Width - 48),
-                    345);
+            // ÜST BAŞLIK
+            RoundedPanel header = new RoundedPanel();
+            header.Location = new Point(24, 22);
+            header.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 92);
+            header.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            header.Radius = 10;
+            header.FillColor = Color.White;
+            header.BorderColor = _border;
+            header.BorderThickness = 1;
+            page.Controls.Add(header);
 
-            Label title =
-                new Label();
+            Label title = new Label();
+            title.Text = "Sistem Ayarları";
+            title.AutoSize = true;
+            title.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
+            title.ForeColor = _text;
+            title.Location = new Point(20, 13);
+            header.Controls.Add(title);
 
-            title.Text =
-                "Firma Bilgileri";
+            Label subtitle = new Label();
+            subtitle.Text = "Firma profilini ve NEXORA uygulama bilgilerini tek ekrandan görüntüleyin.";
+            subtitle.AutoSize = true;
+            subtitle.Font = new Font("Segoe UI", 9.5F);
+            subtitle.ForeColor = _muted;
+            subtitle.Location = new Point(22, 52);
+            header.Controls.Add(subtitle);
 
-            title.AutoSize =
-                true;
+            Label active = new Label();
+            active.Text = "● Sistem Aktif";
+            active.AutoSize = true;
+            active.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            active.ForeColor = Color.FromArgb(22, 132, 75);
+            active.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            header.Controls.Add(active);
 
-            title.Font =
-                new Font(
-                    "Segoe UI",
-                    16F,
-                    FontStyle.Bold);
+            // ÖZET KARTLARI
+            TableLayoutPanel stats = new TableLayoutPanel();
+            stats.Location = new Point(24, 132);
+            stats.Size = new Size(Math.Max(970, page.ClientSize.Width - 48), 104);
+            stats.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            stats.ColumnCount = 4;
+            stats.RowCount = 1;
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            page.Controls.Add(stats);
 
-            title.ForeColor =
-                Color.FromArgb(
-                    35,
-                    48,
-                    65);
+            string[] statBaslik = { "AKTİF KULLANICI", "CARİ", "ÜRÜN / HİZMET", "FATURA" };
+            string[] statDeger =
+            {
+                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Aktif" : _kullaniciAdi,
+                AppData.Cariler.Count.ToString(),
+                AppData.Urunler.Count.ToString(),
+                AppData.Faturalar.Count.ToString()
+            };
 
-            title.Location =
-                new Point(
-                    20,
-                    20);
+            for (int i = 0; i < 4; i++)
+            {
+                RoundedPanel stat = new RoundedPanel();
+                stat.Dock = DockStyle.Fill;
+                stat.Margin = i == 0
+                    ? new Padding(0, 0, 6, 0)
+                    : (i == 3 ? new Padding(6, 0, 0, 0) : new Padding(3, 0, 3, 0));
+                stat.Radius = 9;
+                stat.FillColor = Color.White;
+                stat.BorderColor = _border;
+                stat.BorderThickness = 1;
+                stats.Controls.Add(stat, i, 0);
 
-            card.Controls.Add(
-                title);
+                Label cap = new Label();
+                cap.Text = statBaslik[i];
+                cap.AutoSize = true;
+                cap.Font = new Font("Segoe UI", 8.3F, FontStyle.Bold);
+                cap.ForeColor = _muted;
+                cap.Location = new Point(17, 16);
+                stat.Controls.Add(cap);
 
-            // Firma Ünvanı
-            card.Controls.Add(
-                FormLabel(
-                    "Firma Ünvanı",
-                    20,
-                    75));
+                Label val = new Label();
+                val.Text = statDeger[i];
+                val.AutoSize = true;
+                val.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+                val.ForeColor = i == 0 ? _primary : _text;
+                val.Location = new Point(16, 43);
+                stat.Controls.Add(val);
+            }
 
-            TextBox txtFirma =
-                new TextBox();
+            // SOL: FİRMA PROFİLİ
+            RoundedPanel firmaCard = new RoundedPanel();
+            firmaCard.Location = new Point(24, 254);
+            firmaCard.Size = new Size(Math.Max(610, page.ClientSize.Width - 388), 440);
+            firmaCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            firmaCard.Radius = 10;
+            firmaCard.FillColor = Color.White;
+            firmaCard.BorderColor = _border;
+            firmaCard.BorderThickness = 1;
+            page.Controls.Add(firmaCard);
 
-            txtFirma.Location =
-                new Point(
-                    20,
-                    100);
+            Label firmaTitle = new Label();
+            firmaTitle.Text = "Firma Profili";
+            firmaTitle.AutoSize = true;
+            firmaTitle.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
+            firmaTitle.ForeColor = _text;
+            firmaTitle.Location = new Point(22, 18);
+            firmaCard.Controls.Add(firmaTitle);
 
-            txtFirma.Size =
-                new Size(
-                    500,
-                    30);
+            Label firmaSub = new Label();
+            firmaSub.Text = "Fatura ve belgelerde kullanılacak temel firma bilgileri";
+            firmaSub.AutoSize = true;
+            firmaSub.Font = new Font("Segoe UI", 9F);
+            firmaSub.ForeColor = _muted;
+            firmaSub.Location = new Point(23, 48);
+            firmaCard.Controls.Add(firmaSub);
 
-            card.Controls.Add(
-                txtFirma);
+            firmaCard.Controls.Add(FormLabel("Firma Ünvanı", 24, 88));
+            TextBox txtFirma = new TextBox();
+            txtFirma.Location = new Point(24, 115);
+            txtFirma.Size = new Size(520, 30);
+            txtFirma.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtFirma);
 
-            // Vergi No
-            card.Controls.Add(
-                FormLabel(
-                    "Vergi No",
-                    20,
-                    155));
+            firmaCard.Controls.Add(FormLabel("Vergi / T.C. No", 24, 166));
+            TextBox txtVergi = new TextBox();
+            txtVergi.Location = new Point(24, 193);
+            txtVergi.Size = new Size(245, 30);
+            txtVergi.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtVergi);
 
-            TextBox txtVergi =
-                new TextBox();
+            firmaCard.Controls.Add(FormLabel("Vergi Dairesi", 299, 166));
+            TextBox txtVergiDairesi = new TextBox();
+            txtVergiDairesi.Location = new Point(299, 193);
+            txtVergiDairesi.Size = new Size(245, 30);
+            txtVergiDairesi.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtVergiDairesi);
 
-            txtVergi.Location =
-                new Point(
-                    20,
-                    180);
+            firmaCard.Controls.Add(FormLabel("E-Posta", 24, 244));
+            TextBox txtMail = new TextBox();
+            txtMail.Location = new Point(24, 271);
+            txtMail.Size = new Size(245, 30);
+            txtMail.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtMail);
 
-            txtVergi.Size =
-                new Size(
-                    235,
-                    30);
+            firmaCard.Controls.Add(FormLabel("Telefon", 299, 244));
+            TextBox txtTelefon = new TextBox();
+            txtTelefon.Location = new Point(299, 271);
+            txtTelefon.Size = new Size(245, 30);
+            txtTelefon.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtTelefon);
 
-            card.Controls.Add(
-                txtVergi);
+            firmaCard.Controls.Add(FormLabel("Adres", 24, 322));
+            TextBox txtAdres = new TextBox();
+            txtAdres.Location = new Point(24, 349);
+            txtAdres.Size = new Size(520, 58);
+            txtAdres.Multiline = true;
+            txtAdres.Font = new Font("Segoe UI", 10F);
+            firmaCard.Controls.Add(txtAdres);
 
-            // Vergi Dairesi
-            card.Controls.Add(
-                FormLabel(
-                    "Vergi Dairesi",
-                    280,
-                    155));
+            // SAĞ: UYGULAMA BİLGİLERİ
+            RoundedPanel appCard = new RoundedPanel();
+            appCard.Location = new Point(Math.Max(674, page.ClientSize.Width - 340), 254);
+            appCard.Size = new Size(316, 440);
+            appCard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            appCard.Radius = 10;
+            appCard.FillColor = Color.White;
+            appCard.BorderColor = _border;
+            appCard.BorderThickness = 1;
+            page.Controls.Add(appCard);
 
-            TextBox txtVergiDairesi =
-                new TextBox();
+            Label appTitle = new Label();
+            appTitle.Text = "NEXORA";
+            appTitle.AutoSize = true;
+            appTitle.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
+            appTitle.ForeColor = _primary;
+            appTitle.Location = new Point(22, 18);
+            appCard.Controls.Add(appTitle);
 
-            txtVergiDairesi.Location =
-                new Point(
-                    280,
-                    180);
+            Label appSub = new Label();
+            appSub.Text = "Uygulama Bilgileri";
+            appSub.AutoSize = true;
+            appSub.Font = new Font("Segoe UI", 9F);
+            appSub.ForeColor = _muted;
+            appSub.Location = new Point(23, 48);
+            appCard.Controls.Add(appSub);
 
-            txtVergiDairesi.Size =
-                new Size(
-                    240,
-                    30);
+            string[] bilgiBaslik = { "Oturum", "Görünüm", "Veri Durumu", "Çalışma Alanı" };
+            string[] bilgiDeger =
+            {
+                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "Aktif Kullanıcı" : _kullaniciAdi,
+                _isDarkMode ? "Koyu Tema" : "Açık Tema",
+                "Erişilebilir",
+                "NEXORA ERP"
+            };
 
-            card.Controls.Add(
-                txtVergiDairesi);
+            for (int i = 0; i < 4; i++)
+            {
+                Label b = new Label();
+                b.Text = bilgiBaslik[i];
+                b.AutoSize = true;
+                b.Font = new Font("Segoe UI", 8.3F, FontStyle.Bold);
+                b.ForeColor = _muted;
+                b.Location = new Point(24, 94 + i * 72);
+                appCard.Controls.Add(b);
 
-            // Adres
-            card.Controls.Add(
-                FormLabel(
-                    "Adres",
-                    20,
-                    235));
+                Label d = new Label();
+                d.Text = bilgiDeger[i];
+                d.AutoSize = true;
+                d.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+                d.ForeColor = i == 2 ? Color.FromArgb(22, 132, 75) : _text;
+                d.Location = new Point(23, 117 + i * 72);
+                appCard.Controls.Add(d);
+            }
 
-            TextBox txtAdres =
-                new TextBox();
+            Label note = new Label();
+            note.Text = "Firma bilgileri için projede kalıcı bir ayar tablosu bulunmadığından bu ekran mevcut veritabanı yapısına müdahale etmez.";
+            note.Size = new Size(266, 62);
+            note.Font = new Font("Segoe UI", 8.2F);
+            note.ForeColor = _muted;
+            note.Location = new Point(24, 365);
+            appCard.Controls.Add(note);
 
-            txtAdres.Location =
-                new Point(
-                    20,
-                    260);
+            // YERLEŞİM
+            Action yerlesim = delegate
+            {
+                header.Width = Math.Max(970, page.ClientSize.Width - 48);
+                active.Location = new Point(
+                    Math.Max(700, header.ClientSize.Width - active.Width - 22), 35);
 
-            txtAdres.Size =
-                new Size(
-                    500,
-                    55);
+                stats.Width = Math.Max(970, page.ClientSize.Width - 48);
 
-            txtAdres.Multiline =
-                true;
+                firmaCard.Width = Math.Max(610, page.ClientSize.Width - 388);
+                appCard.Left = Math.Max(674, page.ClientSize.Width - 340);
+            };
 
-            card.Controls.Add(
-                txtAdres);
-
-            pnlContent.Controls.Add(
-                card);
+            page.Resize += delegate { yerlesim(); };
+            yerlesim();
         }
 
         // =========================================================
@@ -4999,8 +5956,7 @@ namespace UrunFaturaYonetimi
             button.Text =
                 text;
 
-            button.AutoSize =
-                false;
+            button.AutoSize = false;
 
             button.Size =
                 primary
@@ -5036,6 +5992,9 @@ namespace UrunFaturaYonetimi
 
             button.TextAlign =
                 ContentAlignment.MiddleCenter;
+
+            button.AutoEllipsis = false;
+            button.UseCompatibleTextRendering = false;
 
             button.UseCompatibleTextRendering =
                 false;
@@ -5102,179 +6061,76 @@ namespace UrunFaturaYonetimi
             string title,
             string glyph)
         {
-            RoundedPanel row =
-                new RoundedPanel();
+            Panel row = new Panel();
+            row.Location = new Point(10, y);
+            row.Size = new Size(parent.ClientSize.Width - 20, 48);
+            row.Anchor =
+                AnchorStyles.Top |
+                AnchorStyles.Left |
+                AnchorStyles.Right;
+            row.BackColor =
+                _isDarkMode
+                ? Color.FromArgb(31, 43, 59)
+                : Color.White;
+            row.BorderStyle = BorderStyle.FixedSingle;
 
-            row.Location =
-                new Point(
-                    8,
-                    y);
+            Label typeLabel = new Label();
+            typeLabel.Text = type;
+            typeLabel.AutoSize = false;
+            typeLabel.Size = new Size(66, 28);
+            typeLabel.Location = new Point(8, 9);
+            typeLabel.TextAlign = ContentAlignment.MiddleCenter;
+            typeLabel.Font =
+                new Font("Segoe UI", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
+            typeLabel.ForeColor = CurrentMutedText();
+            typeLabel.BackColor =
+                _isDarkMode
+                ? Color.FromArgb(48, 61, 80)
+                : Color.FromArgb(237, 241, 246);
+            row.Controls.Add(typeLabel);
 
-            row.Size =
-                new Size(
-                    315,
-                    30);
+            PictureBox iconBox = new PictureBox();
+            iconBox.Image =
+                IconBitmap(glyph, 8.5F, _primary, 18, Color.Transparent);
+            iconBox.Size = new Size(22, 22);
+            iconBox.Location = new Point(82, 13);
+            iconBox.SizeMode = PictureBoxSizeMode.CenterImage;
+            row.Controls.Add(iconBox);
 
-            row.Radius =
-                3;
+            Label value = new Label();
+            value.Text = title;
+            value.AutoSize = false;
+            value.AutoEllipsis = true;
+            value.Location = new Point(110, 8);
+            value.Size = new Size(
+                Math.Max(100, row.ClientSize.Width - 158),
+                32);
+            value.Anchor =
+                AnchorStyles.Top |
+                AnchorStyles.Left |
+                AnchorStyles.Right;
+            value.TextAlign = ContentAlignment.MiddleLeft;
+            value.Font =
+                new Font("Segoe UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point);
+            value.ForeColor = CurrentPrimaryText();
+            row.Controls.Add(value);
 
-            row.FillColor =
-                CurrentCardColor();
-
-            row.BorderColor =
-                CurrentBorderColor();
-
-            row.BorderThickness =
-                1;
-
-            Label typeBadge =
-                Badge(
-                    type,
-                    _isDarkMode
-                        ? Color.FromArgb(
-                            51,
-                            64,
-                            82)
-                        : Color.FromArgb(
-                            235,
-                            239,
-                            244),
-                    CurrentMutedText());
-
-            typeBadge.Location =
-                new Point(
-                    5,
-                    5);
-
-            row.Controls.Add(
-                typeBadge);
-
-            PictureBox icon =
-                new PictureBox();
-
-            icon.Image =
-                IconBitmap(
-                    glyph,
-                    9,
-                    _primary,
-                    16,
-                    Color.Transparent);
-
-            icon.Size =
-                new Size(
-                    16,
-                    16);
-
-            icon.Location =
-                new Point(
-                    54,
-                    7);
-
-            icon.SizeMode =
-                PictureBoxSizeMode.CenterImage;
-
-            row.Controls.Add(
-                icon);
-
-            Label label =
-                new Label();
-
-            label.Text =
-                title;
-
-            label.AutoEllipsis =
-                true;
-
-            label.Size =
-                new Size(
-                    205,
-                    18);
-
-            label.Location =
-                new Point(
-                    73,
-                    6);
-
-            label.Font =
-                new Font(
-                    "Segoe UI",
-                    10.5F);
-
-            label.ForeColor =
-                CurrentPrimaryText();
-
-            row.Controls.Add(
-                label);
-
-            PictureBox arrow =
-                new PictureBox();
-
-            arrow.Image =
-                IconBitmap(
-                    "\uE72A",
-                    9,
-                    CurrentMutedText(),
-                    16,
-                    Color.Transparent);
-
-            arrow.Size =
-                new Size(
-                    16,
-                    16);
-
+            Label arrow = new Label();
+            arrow.Text = "›";
+            arrow.AutoSize = false;
+            arrow.Size = new Size(30, 30);
             arrow.Location =
-                new Point(
-                    291,
-                    7);
+                new Point(row.ClientSize.Width - 36, 8);
+            arrow.Anchor =
+                AnchorStyles.Top |
+                AnchorStyles.Right;
+            arrow.TextAlign = ContentAlignment.MiddleCenter;
+            arrow.Font =
+                new Font("Segoe UI", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            arrow.ForeColor = CurrentMutedText();
+            row.Controls.Add(arrow);
 
-            arrow.SizeMode =
-                PictureBoxSizeMode.CenterImage;
-
-            row.Controls.Add(
-                arrow);
-
-            row.Resize +=
-                delegate
-                {
-                    icon.Left =
-                        typeBadge.Right + 7;
-
-                    label.Left =
-                        icon.Right + 5;
-
-                    arrow.Left =
-                        row.ClientSize.Width -
-                        arrow.Width -
-                        8;
-
-                    label.Width =
-                        Math.Max(
-                            30,
-                            arrow.Left -
-                            label.Left -
-                            5);
-                };
-
-            icon.Left =
-                typeBadge.Right + 7;
-
-            label.Left =
-                icon.Right + 5;
-
-            arrow.Left =
-                row.ClientSize.Width -
-                arrow.Width -
-                8;
-
-            label.Width =
-                Math.Max(
-                    30,
-                    arrow.Left -
-                    label.Left -
-                    5);
-
-            parent.Controls.Add(
-                row);
+            parent.Controls.Add(row);
         }
 
         private void ApplyStatusStyle(
@@ -5993,6 +6849,12 @@ namespace UrunFaturaYonetimi
         {
             string q = TurkceKucult(kullaniciMesaji);
 
+            // NEXORA AI: Kullanıcının verdiği cari + ürün + miktar bilgileriyle
+            // Yeni Fatura ekranını otomatik hazırlar. Faturayı KAYDETMEZ; son onay kullanıcıdadır.
+            string aiFaturaCevabi = AiFaturaHazirlamaKomutunuCalistir(kullaniciMesaji);
+            if (aiFaturaCevabi != null)
+                return aiFaturaCevabi;
+
             DateTime simdi = DateTime.Now;
             DateTime buAyBaslangic = new DateTime(simdi.Year, simdi.Month, 1);
             DateTime sonrakiAyBaslangic = buAyBaslangic.AddMonths(1);
@@ -6327,6 +7189,418 @@ namespace UrunFaturaYonetimi
                 "Bu cümleyi henüz güvenli bir veri sorgusuna çeviremedim.\r\n\r\n" +
                 "Fatura, müşteri, dönem, toplam veya karşılaştırma içeren bir soru deneyin. " +
                 "Örneğin “Bu ay işler nasıl?” yazabilirsiniz.";
+        }
+
+        // =========================================================
+        // NEXORA AI - FATURA HAZIRLAMA
+        // =========================================================
+        private string AiFaturaHazirlamaKomutunuCalistir(string mesaj)
+        {
+            string q = TurkceKucult(mesaj);
+
+            bool kalemEkleKomutu =
+                q.Contains("kalem ekle") || q.Contains("ürün ekle") || q.Contains("urun ekle") ||
+                q.Contains("faturaya ekle") || q.Contains("mevcut faturaya ekle");
+
+            bool yeniKomut =
+                !kalemEkleKomutu &&
+                (q.Contains("fatura oluştur") || q.Contains("fatura olustur") ||
+                 q.Contains("fatura hazırla") || q.Contains("fatura hazirla") ||
+                 q.Contains("fatura kes") || q.Contains("faturasını oluştur") ||
+                 q.Contains("faturasini olustur") || q.Contains("fatura yap"));
+
+            // "Fatura oluştur/hazırla" = HER ZAMAN sıfırdan yeni fatura.
+            if (yeniKomut)
+            {
+                AiFaturaDurumunuTemizle();
+                _aiFaturaHazirlamaAktif = true;
+            }
+
+            // "Kalem ekle" = açık olan son Yeni Fatura formuna ekle.
+            if (kalemEkleKomutu)
+            {
+                AiFaturaDurumunuTemizle();
+                _aiKalemEklemeAktif = true;
+                _aiFaturaHazirlamaAktif = true;
+            }
+
+            if (!_aiFaturaHazirlamaAktif)
+                return null;
+
+            if (q == "iptal" || q.Contains("faturayı iptal") || q.Contains("faturayi iptal"))
+            {
+                AiFaturaDurumunuTemizle();
+                return "Fatura hazırlama işlemini iptal ettim.";
+            }
+
+            // Kalem ekleme modunda cari istemiyoruz; mevcut faturanın alıcısı aynen korunur.
+            if (!_aiKalemEklemeAktif && _aiBekleyenCari == null)
+            {
+                string cariAdi = AiCariAdiniBul(mesaj);
+                if (!string.IsNullOrWhiteSpace(cariAdi) && AppData.Cariler != null)
+                {
+                    _aiBekleyenCari = AppData.Cariler.FirstOrDefault(c =>
+                        c != null && string.Equals(c.CariAdi, cariAdi,
+                            StringComparison.CurrentCultureIgnoreCase));
+                }
+            }
+
+            if (_aiBekleyenUrun == null)
+                _aiBekleyenUrun = AiUrunuBul(mesaj);
+
+            if (_aiBekleyenMiktar <= 0)
+                _aiBekleyenMiktar = AiMiktariBul(mesaj, true);
+
+            if (_aiKalemEklemeAktif)
+            {
+                YeniFaturaForm mevcutForm = AiAktifYeniFaturaFormunuBul();
+                if (mevcutForm == null)
+                {
+                    AiFaturaDurumunuTemizle();
+                    return "Kalem ekleyebilmem için açık bir Yeni Fatura bulunamadı. Önce bir fatura oluşturun veya Yeni Fatura ekranını açın.";
+                }
+
+                if (_aiBekleyenUrun == null)
+                    return "Mevcut faturaya hangi kayıtlı ürün/hizmeti ekleyeyim?";
+
+                if (_aiBekleyenMiktar <= 0)
+                    return _aiBekleyenUrun.UrunAdi + " bulundu. Kaç adet/birim ekleyeyim?";
+
+                UrunKaydi eklenecekUrun = _aiBekleyenUrun;
+                decimal eklenecekMiktar = _aiBekleyenMiktar;
+
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    AiFaturaKaleminiYaz(mevcutForm, eklenecekUrun, eklenecekMiktar, false);
+                    mevcutForm.BringToFront();
+                    mevcutForm.Activate();
+                });
+
+                decimal ekAra = eklenecekUrun.BirimFiyat * eklenecekMiktar;
+                decimal ekKdv = ekAra * eklenecekUrun.KdvOrani / 100m;
+                string ekCevap =
+                    "Mevcut faturaya yeni kalem ekledim.\r\n\r\n" +
+                    "• Ürün/Hizmet: " + eklenecekUrun.UrunAdi + "\r\n" +
+                    "• Miktar: " + eklenecekMiktar.ToString("0.##") + "\r\n" +
+                    "• Birim fiyat: " + eklenecekUrun.BirimFiyat.ToString("N2") + " TL\r\n" +
+                    "• KDV: %" + eklenecekUrun.KdvOrani.ToString("0.##") + "\r\n" +
+                    "• Bu kalemin toplamı: " + (ekAra + ekKdv).ToString("N2") + " TL";
+
+                AiFaturaDurumunuTemizle();
+                return ekCevap;
+            }
+
+            if (_aiBekleyenCari == null)
+            {
+                return "Faturayı hangi kayıtlı müşteri/cari için hazırlayayım?\r\n\r\n" +
+                       "Cari kodu, TCKN/VKN veya kayıtlı diğer bilgileri istemeyeceğim; müşteri adından otomatik alacağım.";
+            }
+
+            if (_aiBekleyenUrun == null)
+            {
+                return _aiBekleyenCari.CariAdi + " kaydını buldum. " +
+                       "Faturaya hangi kayıtlı ürün/hizmeti ekleyeyim?\r\n\r\n" +
+                       "Stok kodu, fiyat ve KDV sistemden otomatik alınacak.";
+            }
+
+            if (_aiBekleyenMiktar <= 0)
+            {
+                return _aiBekleyenCari.CariAdi + " ve " + _aiBekleyenUrun.UrunAdi +
+                       " kayıtlarını buldum. Kaç adet/birim ekleyeyim?";
+            }
+
+            CariKaydi cari = _aiBekleyenCari;
+            UrunKaydi urun = _aiBekleyenUrun;
+            decimal miktar = _aiBekleyenMiktar;
+
+            BeginInvoke((MethodInvoker)delegate
+            {
+                // Yeni fatura komutunda yeni pencere açılır ve kalemler sıfırlanır.
+                AiYeniFaturaFormunuAc(cari, urun, miktar);
+            });
+
+            decimal araToplam = urun.BirimFiyat * miktar;
+            decimal kdv = araToplam * urun.KdvOrani / 100m;
+            decimal genel = araToplam + kdv;
+
+            string cevap =
+                "Sıfırdan yeni faturayı oluşturdum ve veritabanına kaydettim.\r\n\r\n" +
+                "• Cari: " + cari.CariAdi + "\r\n" +
+                "• Cari kodu: " + AiBosDegilse(cari.CariKodu) + " (otomatik)\r\n" +
+                "• TCKN/VKN: " + AiBosDegilse(cari.KimlikNo) + " (otomatik)\r\n" +
+                "• Ürün/Hizmet: " + urun.UrunAdi + "\r\n" +
+                "• Stok kodu: " + AiBosDegilse(urun.StokKodu) + " (otomatik)\r\n" +
+                "• Miktar: " + miktar.ToString("0.##") + "\r\n" +
+                "• Birim fiyat: " + urun.BirimFiyat.ToString("N2") + " TL (otomatik)\r\n" +
+                "• KDV: %" + urun.KdvOrani.ToString("0.##") + " (otomatik)\r\n" +
+                "• Genel toplam: " + genel.ToString("N2") + " TL\r\n\r\n" +
+                "Yeni Fatura ekranında yalnızca bu kalem bulunuyor. Kayıt SQL Server veritabanına işlendi.";
+
+            AiFaturaDurumunuTemizle();
+            return cevap;
+        }
+
+        private void AiFaturaDurumunuTemizle()
+        {
+            _aiBekleyenCari = null;
+            _aiBekleyenUrun = null;
+            _aiBekleyenMiktar = 0m;
+            _aiFaturaHazirlamaAktif = false;
+            _aiKalemEklemeAktif = false;
+        }
+
+        private string AiBosDegilse(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "Kayıtta yok" : value;
+        }
+
+        private UrunKaydi AiUrunuBul(string mesaj)
+        {
+            if (AppData.Urunler == null)
+                return null;
+
+            string normalMesaj = TurkceKucult(mesaj);
+
+            foreach (UrunKaydi urun in AppData.Urunler
+                .Where(u => u != null && !string.IsNullOrWhiteSpace(u.UrunAdi))
+                .OrderByDescending(u => u.UrunAdi.Length))
+            {
+                if (normalMesaj.Contains(TurkceKucult(urun.UrunAdi)))
+                    return urun;
+            }
+
+            UrunKaydi enIyi = null;
+            int enIyiPuan = 0;
+
+            foreach (UrunKaydi urun in AppData.Urunler)
+            {
+                if (urun == null || string.IsNullOrWhiteSpace(urun.UrunAdi))
+                    continue;
+
+                string[] kelimeler = TurkceKucult(urun.UrunAdi).Split(
+                    new char[] { ' ', '-', '/', '(', ')' },
+                    StringSplitOptions.RemoveEmptyEntries);
+
+                int puan = 0;
+                foreach (string kelime in kelimeler)
+                {
+                    if (kelime.Length >= 3 && normalMesaj.Contains(kelime))
+                        puan++;
+                }
+
+                if (puan > enIyiPuan)
+                {
+                    enIyiPuan = puan;
+                    enIyi = urun;
+                }
+            }
+
+            return enIyiPuan > 0 ? enIyi : null;
+        }
+
+        private decimal AiMiktariBul(string mesaj, bool devamKonusmasi)
+        {
+            Match m = Regex.Match(
+                mesaj,
+                @"(?<miktar>\d+(?:[\.,]\d+)?)\s*(?:adet|tane|saat|gün|gun|kg|paket|lisans|birim)",
+                RegexOptions.IgnoreCase);
+
+            // AI miktarı sorduysa kullanıcının yalnızca "2" yazması da yeterlidir.
+            if (!m.Success && devamKonusmasi)
+            {
+                m = Regex.Match(
+                    mesaj.Trim(),
+                    @"^(?<miktar>\d+(?:[\.,]\d+)?)$");
+            }
+
+            if (!m.Success)
+                return 0m;
+
+            string deger = m.Groups["miktar"].Value.Replace(',', '.');
+            decimal miktar;
+            if (decimal.TryParse(
+                deger,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out miktar))
+            {
+                return miktar;
+            }
+
+            return 0m;
+        }
+
+        private void AiYeniFaturaFormunuAc(CariKaydi cari, UrunKaydi urun, decimal miktar)
+        {
+            YeniFaturaForm form = new YeniFaturaForm();
+            _aiSonFaturaFormu = form;
+
+            form.FormClosed += delegate
+            {
+                if (ReferenceEquals(_aiSonFaturaFormu, form))
+                    _aiSonFaturaFormu = null;
+            };
+
+            form.Shown += delegate
+            {
+                try
+                {
+                    AiTextBoxDoldur(form, new string[] { "txtAlici", "txtCariAdi", "txtMusteriAdi" }, cari.CariAdi);
+                    AiTextBoxDoldur(form, new string[] { "txtCariKodu", "txtCariKod", "txtMusteriKodu" }, cari.CariKodu);
+                    AiTextBoxDoldur(form, new string[] { "txtKimlikNo", "txtVknTckn", "txtVergiNo", "txtTckn" }, cari.KimlikNo);
+                    AiTextBoxDoldur(form, new string[] { "txtFirmaNo" }, cari.FirmaNo);
+                    AiTextBoxDoldur(form, new string[] { "txtFirmaAdi", "txtUnvan" }, cari.FirmaAdi);
+                    AiTextBoxDoldur(form, new string[] { "txtYetkiliKisi", "txtYetkili" }, cari.YetkiliKisi);
+                    AiTextBoxDoldur(form, new string[] { "txtTelefon" }, cari.Telefon);
+                    AiTextBoxDoldur(form, new string[] { "txtEmail", "txtEposta" }, cari.Email);
+                    AiTextBoxDoldur(form, new string[] { "txtMahalle", "txtAdres" }, cari.Mahalle);
+                    AiTextBoxDoldur(form, new string[] { "txtSehir" }, cari.Sehir);
+                    AiTextBoxDoldur(form, new string[] { "txtUlke" }, cari.Ulke);
+
+                    string bilgi = "";
+                    if (!string.IsNullOrWhiteSpace(cari.Telefon)) bilgi += cari.Telefon;
+                    if (!string.IsNullOrWhiteSpace(cari.Email))
+                        bilgi += (bilgi.Length > 0 ? " • " : "") + cari.Email;
+                    AiTextBoxDoldur(form, new string[] { "txtBilgi" }, bilgi);
+
+                    ComboBox cmbTipForm = AiFormAlaniBul<ComboBox>(form, "cmbAliciTipi");
+                    if (cmbTipForm != null && cmbTipForm.Items.Count > 0)
+                    {
+                        bool kurumsal = !string.IsNullOrWhiteSpace(cari.FirmaAdi) ||
+                                        TurkceKucult(cari.Tip).Contains("kurumsal") ||
+                                        TurkceKucult(cari.Tip).Contains("tüzel") ||
+                                        TurkceKucult(cari.Tip).Contains("tuzel");
+                        cmbTipForm.SelectedIndex = Math.Min(kurumsal ? 1 : 0, cmbTipForm.Items.Count - 1);
+                    }
+
+                    // true = yeni fatura. Önce bütün eski/örnek kalemleri temizler.
+                    AiFaturaKaleminiYaz(form, urun, miktar, true);
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "AI fatura taslağını açtı ancak bazı alanlar otomatik doldurulamadı.\r\n\r\n" + ex.Message,
+                        "NEXORA AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
+
+            form.Show(this);
+            form.BringToFront();
+        }
+
+        private YeniFaturaForm AiAktifYeniFaturaFormunuBul()
+        {
+            if (_aiSonFaturaFormu != null && !_aiSonFaturaFormu.IsDisposed)
+                return _aiSonFaturaFormu;
+
+            foreach (Form acikForm in Application.OpenForms)
+            {
+                YeniFaturaForm yf = acikForm as YeniFaturaForm;
+                if (yf != null && !yf.IsDisposed)
+                {
+                    _aiSonFaturaFormu = yf;
+                    return yf;
+                }
+            }
+            return null;
+        }
+
+        private void AiFaturaKaleminiYaz(YeniFaturaForm form, UrunKaydi urun, decimal miktar, bool sifirdanYeniFatura)
+        {
+            if (form == null || urun == null) return;
+
+            DataGridView grid = AiFormAlaniBul<DataGridView>(form, "dgvKalemler");
+            if (grid == null) return;
+
+            if (!(grid.Columns.Contains("StokKodu") && grid.Columns.Contains("Urun") &&
+                  grid.Columns.Contains("Miktar") && grid.Columns.Contains("BirimFiyat") &&
+                  grid.Columns.Contains("Kdv"))) return;
+
+            // KRİTİK KURAL:
+            // "fatura oluştur/hazırla" => önce tüm kalemleri sil.
+            // "kalem ekle"          => mevcut kalemlere dokunma.
+            if (sifirdanYeniFatura)
+                grid.Rows.Clear();
+
+            int index = grid.Rows.Add();
+            DataGridViewRow row = grid.Rows[index];
+            row.Cells["StokKodu"].Value = urun.StokKodu;
+            row.Cells["Urun"].Value = urun.UrunAdi;
+            row.Cells["Miktar"].Value = miktar.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            row.Cells["BirimFiyat"].Value = urun.BirimFiyat.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+            string kdvText = urun.KdvOrani.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+            DataGridViewComboBoxCell comboKdv = row.Cells["Kdv"] as DataGridViewComboBoxCell;
+            if (comboKdv == null || comboKdv.Items.Contains(kdvText))
+                row.Cells["Kdv"].Value = kdvText;
+
+            // Satır toplamını ve sağ önizlemeyi kesin olarak yeniden hesaplat.
+            AiFormMetodunuCalistirParametreli(form, "SatirHesapla", index);
+            grid.EndEdit();
+            grid.Refresh();
+            AiFormMetodunuCalistir(form, "OnizlemeyiGuncelle");
+            form.Refresh();
+        }
+
+        private void AiFormMetodunuCalistirParametreli(object nesne, string metodAdi, int deger)
+        {
+            if (nesne == null) return;
+            System.Reflection.MethodInfo method = nesne.GetType().GetMethod(
+                metodAdi,
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public,
+                null,
+                new Type[] { typeof(int) },
+                null);
+            if (method != null)
+                method.Invoke(nesne, new object[] { deger });
+        }
+
+        private void AiTextBoxDoldur(object form, string[] alanAdlari, string deger)
+        {
+            if (form == null || alanAdlari == null)
+                return;
+
+            foreach (string alanAdi in alanAdlari)
+            {
+                TextBox tb = AiFormAlaniBul<TextBox>(form, alanAdi);
+                if (tb != null)
+                    tb.Text = deger ?? "";
+            }
+        }
+
+        private T AiFormAlaniBul<T>(object nesne, string alanAdi) where T : class
+        {
+            if (nesne == null)
+                return null;
+
+            System.Reflection.FieldInfo field = nesne.GetType().GetField(
+                alanAdi,
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public);
+
+            if (field == null)
+                return null;
+
+            return field.GetValue(nesne) as T;
+        }
+
+        private void AiFormMetodunuCalistir(object nesne, string metodAdi)
+        {
+            if (nesne == null)
+                return;
+
+            System.Reflection.MethodInfo method = nesne.GetType().GetMethod(
+                metodAdi,
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public);
+
+            if (method != null)
+                method.Invoke(nesne, null);
         }
 
         private string AiDonemAdi(
