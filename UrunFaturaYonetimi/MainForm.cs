@@ -4795,8 +4795,12 @@ ORDER BY d.Id;", conn))
             btnYeni.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnYeni.Click += delegate
             {
-                RegisterForm form = new RegisterForm(_userService);
-                form.ShowDialog(this);
+                using (RegisterForm form = new RegisterForm(_userService))
+                {
+                    form.ShowDialog(this);
+                }
+
+                KullanicilarAc();
             };
             header.Controls.Add(btnYeni);
             header.Resize += delegate
@@ -4891,11 +4895,43 @@ ORDER BY d.Id;", conn))
             grid.Columns["Rol"].FillWeight = 80;
             grid.Columns["Durum"].FillWeight = 70;
 
-            grid.Rows.Add(
-                "Sistem Yöneticisi",
-                string.IsNullOrWhiteSpace(_kullaniciAdi) ? "admin" : _kullaniciAdi,
-                "Yönetici",
-                "Aktif");
+            // Kullanıcılar, kayıt işleminin kullandığı users.xml dosyasından okunur.
+            // Bu ekran yalnızca okuma yapar; mevcut kullanıcı kayıtlarını değiştirmez.
+            string kullaniciDosyasi = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory, "users.xml");
+
+            if (File.Exists(kullaniciDosyasi))
+            {
+                try
+                {
+                    var serializer = new System.Xml.Serialization.XmlSerializer(
+                        typeof(List<UserAccount>));
+
+                    using (FileStream stream = new FileStream(
+                        kullaniciDosyasi, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        var kullanicilar = serializer.Deserialize(stream) as List<UserAccount>;
+
+                        if (kullanicilar != null)
+                        {
+                            foreach (UserAccount kullanici in kullanicilar)
+                            {
+                                grid.Rows.Add(
+                                    kullanici.FullName,
+                                    kullanici.Username,
+                                    kullanici.Role,
+                                    kullanici.IsActive ? "Aktif" : "Pasif");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this,
+                        "Kullanıcı listesi okunamadı: " + ex.Message,
+                        "Kullanıcılar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
 
             gridCard.Controls.Add(grid);
         }
