@@ -255,6 +255,15 @@ namespace UrunFaturaYonetimi
 
             foreach (Control c in flpAiMessages.Controls)
             {
+                FlowLayoutPanel raporSatiri = c as FlowLayoutPanel;
+                if (raporSatiri != null && object.Equals(raporSatiri.Tag, "NEXORA_RAPOR_BUTONLARI"))
+                {
+                    int yeniGenislik = Math.Max(300, flpAiMessages.ClientSize.Width - 30);
+                    if (raporSatiri.Width != yeniGenislik)
+                        raporSatiri.Width = yeniGenislik;
+                    continue;
+                }
+
                 Label bubble = c as Label;
                 if (bubble == null)
                     continue;
@@ -333,6 +342,12 @@ namespace UrunFaturaYonetimi
 
             string cevap = AiSorgusunuCalistir(mesaj);
             AiMesajBalonuEkle(cevap, false);
+            if (!string.IsNullOrWhiteSpace(cevap) &&
+                !cevap.StartsWith("Bu cümleyi henüz") &&
+                !cevap.StartsWith("Şunları deneyebilirsiniz"))
+            {
+                AiRaporButonlariEkle(mesaj, cevap);
+            }
         }
 
         private void AiMesajBalonuEkle(string mesaj, bool kullanici)
@@ -379,9 +394,60 @@ namespace UrunFaturaYonetimi
         }
 
 
+        private void AiRaporButonlariEkle(string soru, string cevap)
+        {
+            if (flpAiMessages == null) return;
 
+            FlowLayoutPanel satir = new FlowLayoutPanel();
+            // Sabit ve yeterli yükseklik: Windows/Parallels DPI ölçeklemesinde
+            // buton metinlerinin altının kesilmesini önler.
+            satir.AutoSize = false;
+            satir.WrapContents = false;
+            satir.Tag = "NEXORA_RAPOR_BUTONLARI";
+            satir.FlowDirection = FlowDirection.LeftToRight;
+            satir.BackColor = Color.Transparent;
+            satir.Margin = new Padding(6, 3, 6, 12);
+            satir.Padding = new Padding(0);
+            satir.Size = new Size(Math.Max(300, flpAiMessages.ClientSize.Width - 30), 56);
 
+            string baslik = "NEXORA AI Raporu - " + soru;
+            Button onizle = AiRaporButonu("Önizle");
+            Button pdf = AiRaporButonu("PDF İndir");
+            Button excel = AiRaporButonu("Excel İndir");
 
+            onizle.Click += delegate
+            {
+                using (RaporOnizlemeForm form = new RaporOnizlemeForm(baslik, cevap))
+                    form.ShowDialog(this);
+            };
+            pdf.Click += delegate { RaporOnizlemeForm.PdfKaydet(this, baslik, cevap); };
+            excel.Click += delegate { RaporOnizlemeForm.ExcelKaydet(this, baslik, cevap); };
 
+            satir.Controls.Add(onizle);
+            satir.Controls.Add(pdf);
+            satir.Controls.Add(excel);
+            flpAiMessages.Controls.Add(satir);
+            flpAiMessages.ScrollControlIntoView(satir);
+        }
+
+        private Button AiRaporButonu(string yazi)
+        {
+            Button b = new Button();
+            b.Text = yazi;
+            b.AutoSize = false;
+            b.Size = new Size(yazi == "Önizle" ? 100 : 112, 44);
+            b.Margin = new Padding(0, 0, 6, 0);
+            b.FlatStyle = FlatStyle.Flat;
+            b.FlatAppearance.BorderColor = Color.FromArgb(100, 115, 130);
+            b.BackColor = Color.FromArgb(65, 73, 82);
+            b.ForeColor = Color.White;
+            b.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            b.TextAlign = ContentAlignment.MiddleCenter;
+            b.Padding = new Padding(0);
+            b.UseCompatibleTextRendering = false;
+            b.UseVisualStyleBackColor = false;
+            b.Cursor = Cursors.Hand;
+            return b;
+        }
     }
 }
