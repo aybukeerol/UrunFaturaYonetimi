@@ -9,7 +9,7 @@ namespace UrunFaturaYonetimi
 {
     public partial class MainForm
     {
-private string AiSorgusunuCalistir(string kullaniciMesaji)
+        private string AiSorgusunuCalistir(string kullaniciMesaji)
         {
             string q = TurkceKucult(kullaniciMesaji);
 
@@ -18,11 +18,19 @@ private string AiSorgusunuCalistir(string kullaniciMesaji)
             DateTime buAyBaslangic = new DateTime(simdi.Year, simdi.Month, 1);
             DateTime sonrakiAyBaslangic = buAyBaslangic.AddMonths(1);
             DateTime gecenAyBaslangic = buAyBaslangic.AddMonths(-1);
+            // Haftanın ilk günü pazartesi; bitiş sınırı hariçtir.
+            DateTime buHaftaBaslangic = simdi.Date.AddDays(-((7 + (int)simdi.DayOfWeek - (int)DayOfWeek.Monday) % 7));
+            DateTime sonrakiHaftaBaslangic = buHaftaBaslangic.AddDays(7);
+            DateTime gecenHaftaBaslangic = buHaftaBaslangic.AddDays(-7);
 
             bool buAy = q.Contains("bu ay") || q.Contains("bu ayki") ||
                         q.Contains("bu ayın") || q.Contains("bu ayda");
             bool gecenAy = q.Contains("geçen ay") || q.Contains("gecen ay");
             bool bugun = q.Contains("bugün") || q.Contains("bugun");
+            bool buHafta = q.Contains("bu hafta") || q.Contains("bu haftaki") ||
+                           q.Contains("bu haftanın") || q.Contains("bu haftayı");
+            bool gecenHafta = q.Contains("geçen hafta") || q.Contains("gecen hafta") ||
+                              q.Contains("geçtiğimiz hafta") || q.Contains("gectigimiz hafta");
 
             string cariAdi = AiCariAdiniBul(kullaniciMesaji);
 
@@ -43,6 +51,16 @@ private string AiSorgusunuCalistir(string kullaniciMesaji)
             {
                 baslangic = simdi.Date;
                 bitis = simdi.Date.AddDays(1);
+            }
+            else if (buHafta)
+            {
+                baslangic = buHaftaBaslangic;
+                bitis = sonrakiHaftaBaslangic;
+            }
+            else if (gecenHafta)
+            {
+                baslangic = gecenHaftaBaslangic;
+                bitis = buHaftaBaslangic;
             }
 
             var temel = AppData.Faturalar.AsEnumerable();
@@ -74,49 +92,63 @@ private string AiSorgusunuCalistir(string kullaniciMesaji)
                 .ToList();
 
             // -----------------------------------------------------
-            // "BU AY İŞLER NASIL?" / GENEL YÖNETİCİ ÖZETİ
+            // GÜNLÜK / AYLIK / GENEL YÖNETİCİ ÖZETİ
             // -----------------------------------------------------
             if (q.Contains("işler nasıl") ||
                 q.Contains("isler nasil") ||
+                q.Contains("işler nasıldı") ||
+                q.Contains("isler nasildi") ||
                 q.Contains("durum nasıl") ||
                 q.Contains("durum nasil") ||
+                q.Contains("durum nasıldı") ||
+                q.Contains("durum nasildi") ||
                 q.Contains("özetle") ||
                 q.Contains("özet"))
             {
-                var buAyFaturalari = AppData.Faturalar
-                    .Where(f => f.Tarih >= buAyBaslangic &&
-                                f.Tarih < sonrakiAyBaslangic)
-                    .ToList();
+                // Dönem belirtilmemişse eski davranışı koru: bu ayın özeti.
+                var donemFaturalari = (buAy || gecenAy || bugun || buHafta || gecenHafta)
+                    ? sonuc
+                    : AppData.Faturalar
+                        .Where(f => f.Tarih >= buAyBaslangic &&
+                                    f.Tarih < sonrakiAyBaslangic)
+                        .ToList();
 
-                var gecenAyFaturalari = AppData.Faturalar
-                    .Where(f => f.Tarih >= gecenAyBaslangic &&
-                                f.Tarih < buAyBaslangic)
-                    .ToList();
+                string donemAdi = bugun ? "Bugünün" :
+                                  gecenHafta ? "Geçen haftanın" :
+                                  buHafta ? "Bu haftanın" :
+                                  gecenAy ? "Geçen ayın" : "Bu ayın";
 
-                decimal buAyToplam =
-                    buAyFaturalari.Sum(f => f.GenelToplam);
-                decimal gecenAyToplam =
-                    gecenAyFaturalari.Sum(f => f.GenelToplam);
+                decimal donemToplam = donemFaturalari.Sum(f => f.GenelToplam);
 
-                string degisim;
-                if (gecenAyToplam > 0)
+                string degisimSatiri = "";
+                if (!bugun && !gecenAy && !buHafta && !gecenHafta)
                 {
-                    decimal oran =
-                        ((buAyToplam - gecenAyToplam) / gecenAyToplam) * 100M;
-                    degisim =
-                        oran >= 0
-                        ? "%" + oran.ToString("N1") + " artış"
-                        : "%" + Math.Abs(oran).ToString("N1") + " düşüş";
-                }
-                else
-                {
-                    degisim = "geçen ay karşılaştırma verisi yok";
+                    decimal gecenAyToplam = AppData.Faturalar
+                        .Where(f => f.Tarih >= gecenAyBaslangic &&
+                                    f.Tarih < buAyBaslangic)
+                        .Sum(f => f.GenelToplam);
+
+                    string degisim;
+                    if (gecenAyToplam > 0)
+                    {
+                        decimal oran =
+                            ((donemToplam - gecenAyToplam) / gecenAyToplam) * 100M;
+                        degisim = oran >= 0
+                            ? "%" + oran.ToString("N1") + " artış"
+                            : "%" + Math.Abs(oran).ToString("N1") + " düşüş";
+                    }
+                    else
+                    {
+                        degisim = "geçen ay karşılaştırma verisi yok";
+                    }
+
+                    degisimSatiri = "• Geçen aya göre: " + degisim + "\r\n";
                 }
 
                 string enIyiCari = "-";
                 decimal enIyiCariToplam = 0;
 
-                var grup = buAyFaturalari
+                var grup = donemFaturalari
                     .GroupBy(f => f.CariAdi)
                     .Select(g => new
                     {
@@ -133,11 +165,11 @@ private string AiSorgusunuCalistir(string kullaniciMesaji)
                 }
 
                 return
-                    "Bu ayın kısa özeti:\r\n\r\n" +
-                    "• Fatura sayısı: " + buAyFaturalari.Count + "\r\n" +
+                    donemAdi + " kısa özeti:\r\n\r\n" +
+                    "• Fatura sayısı: " + donemFaturalari.Count + "\r\n" +
                     "• Toplam fatura tutarı: " +
-                    buAyToplam.ToString("N2") + " TL\r\n" +
-                    "• Geçen aya göre: " + degisim + "\r\n" +
+                    donemToplam.ToString("N2") + " TL\r\n" +
+                    degisimSatiri +
                     "• En yüksek hacimli cari: " + enIyiCari +
                     (grup == null ? "" :
                         " (" + enIyiCariToplam.ToString("N2") + " TL)") +

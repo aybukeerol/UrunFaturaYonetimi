@@ -12,7 +12,7 @@
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-	  <PreferNativeArm64>false</PreferNativeArm64>
+    <PreferNativeArm64>false</PreferNativeArm64>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
@@ -242,10 +242,17 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="LoginWindow.xaml.cs" />
+    <Compile Include="MainForm.AI.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="MainForm.Ayarlar.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
+	  <Compile Include="MainForm.AI.cs">
+		  <DependentUpon>MainForm.cs</DependentUpon>
+		  <SubType>Form</SubType>
+	  </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -253,9 +260,10 @@
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="MainForm.Raporlar.cs">
-      <SubType>Form</SubType>
-    </Compile>
+	  <Compile Include="MainForm.Raporlar.cs">
+		  <DependentUpon>MainForm.cs</DependentUpon>
+		  <SubType>Form</SubType>
+	  </Compile>
     <Compile Include="Models\CurrentAccount.cs" />
     <Compile Include="Models\Invoice.cs" />
     <Compile Include="Models\InvoiceDetail.cs" />
