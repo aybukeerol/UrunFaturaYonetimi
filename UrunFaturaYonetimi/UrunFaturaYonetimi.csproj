@@ -244,9 +244,6 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="LoginWindow.xaml.cs" />
-    <Compile Include="MainForm.AI.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="MainForm.Ayarlar.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Form</SubType>
@@ -258,12 +255,18 @@
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="MainForm.Faturalar.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="MainForm.Kullanicilar.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainForm.Raporlar.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainForm.Taslaklar.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Models\CurrentAccount.cs" />
@@ -280,6 +283,7 @@
     <Compile Include="RegisterForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="TaslakDeposu.cs" />
     <Compile Include="ThemeManager.cs" />
     <Compile Include="VerificationCodeForm.cs">
       <SubType>Form</SubType>

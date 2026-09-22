@@ -35,6 +35,8 @@ namespace UrunFaturaYonetimi
         private FlowLayoutPanel pnlFavoriCariler;
         private FlowLayoutPanel pnlFavoriUrunler;
 
+        private string duzenlenenTaslakNo;
+
         private bool hesaplamaYapiliyor =
             false;
 
@@ -196,7 +198,9 @@ namespace UrunFaturaYonetimi
                 "☾  Koyu mod";
 
             btnTema.Size =
-                new Size(125, 35);
+                new Size(145, 39);
+
+            btnTema.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             btnTema.Anchor =
                 AnchorStyles.Top |
@@ -236,7 +240,9 @@ namespace UrunFaturaYonetimi
                 "Kapat";
 
             btnKapat.Size =
-                new Size(90, 35);
+                new Size(95, 39);
+
+            btnKapat.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             btnKapat.Anchor =
                 AnchorStyles.Top |
@@ -277,7 +283,9 @@ namespace UrunFaturaYonetimi
                         10;
 
                     btnTema.Top =
-                        15;
+                        13;
+
+                    btnKapat.Top = 13;
                 };
 
             header.Controls.Add(
@@ -324,7 +332,7 @@ namespace UrunFaturaYonetimi
                 new Point(15, 15);
 
             favoriCard.Size =
-                new Size(500, 205);
+                new Size(500, 255);
 
             favoriCard.Anchor =
                 AnchorStyles.Top |
@@ -341,7 +349,7 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Favori Cariler",
                     18,
-                    48);
+                    56);
 
             favoriCard.Controls.Add(
                 lblCari);
@@ -350,10 +358,10 @@ namespace UrunFaturaYonetimi
                 new FlowLayoutPanel();
 
             pnlFavoriCariler.Location =
-                new Point(18, 70);
+                new Point(18, 86);
 
             pnlFavoriCariler.Size =
-                new Size(460, 40);
+                new Size(460, 48);
 
             pnlFavoriCariler.AutoScroll =
                 true;
@@ -366,7 +374,7 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Favori Ürünler",
                     18,
-                    120);
+                    153);
 
             favoriCard.Controls.Add(
                 lblUrun);
@@ -375,10 +383,10 @@ namespace UrunFaturaYonetimi
                 new FlowLayoutPanel();
 
             pnlFavoriUrunler.Location =
-                new Point(18, 154);
+                new Point(18, 185);
 
             pnlFavoriUrunler.Size =
-                new Size(460, 42);
+                new Size(460, 50);
 
             pnlFavoriUrunler.AutoScroll =
                 true;
@@ -398,10 +406,10 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             aliciCard.Location =
-                new Point(15, 235);
+                new Point(15, 280);
 
             aliciCard.Size =
-                new Size(500, 205);
+                new Size(500, 255);
 
             aliciCard.Anchor =
                 AnchorStyles.Top |
@@ -418,13 +426,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Alıcı Tipi",
                     18,
-                    53));
+                    60));
 
             cmbAliciTipi =
                 new ComboBox();
 
             cmbAliciTipi.Location =
-                new Point(18, 76);
+                new Point(18, 91);
 
             cmbAliciTipi.Size =
                 new Size(205, 30);
@@ -456,13 +464,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Cari / Alıcı",
                     245,
-                    53));
+                    60));
 
             txtAlici =
                 new TextBox();
 
             txtAlici.Location =
-                new Point(245, 76);
+                new Point(245, 91);
 
             txtAlici.Size =
                 new Size(225, 30);
@@ -477,7 +485,7 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "T.C. Kimlik No",
                     18,
-                    125);
+                    145);
 
             aliciCard.Controls.Add(
                 lblKimlik);
@@ -486,7 +494,7 @@ namespace UrunFaturaYonetimi
                 new TextBox();
 
             txtKimlikNo.Location =
-                new Point(18, 148);
+                new Point(18, 178);
 
             txtKimlikNo.Size =
                 new Size(205, 30);
@@ -502,7 +510,7 @@ namespace UrunFaturaYonetimi
                     "Cari Hesap Seç");
 
             btnCariSec.Location =
-                new Point(245, 145);
+                new Point(245, 175);
 
             btnCariSec.Click +=
                 delegate
@@ -527,10 +535,10 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             faturaCard.Location =
-                new Point(15, 455);
+                new Point(15, 550);
 
             faturaCard.Size =
-                new Size(500, 270);
+                new Size(500, 315);
 
             faturaCard.Anchor =
                 AnchorStyles.Top |
@@ -547,13 +555,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Fatura No",
                     18,
-                    52));
+                    60));
 
             txtFaturaNo =
                 new TextBox();
 
             txtFaturaNo.Location =
-                new Point(18, 75);
+                new Point(18, 91);
 
             txtFaturaNo.Size =
                 new Size(205, 30);
@@ -573,13 +581,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Tarih",
                     245,
-                    52));
+                    60));
 
             dtpTarih =
                 new DateTimePicker();
 
             dtpTarih.Location =
-                new Point(245, 75);
+                new Point(245, 91);
 
             dtpTarih.Size =
                 new Size(205, 30);
@@ -597,13 +605,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Senaryo",
                     18,
-                    125));
+                    145));
 
             cmbSenaryo =
                 new ComboBox();
 
             cmbSenaryo.Location =
-                new Point(18, 148);
+                new Point(18, 178);
 
             cmbSenaryo.Size =
                 new Size(205, 30);
@@ -630,13 +638,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Fatura Tipi",
                     245,
-                    125));
+                    145));
 
             cmbFaturaTipi =
                 new ComboBox();
 
             cmbFaturaTipi.Location =
-                new Point(245, 148);
+                new Point(245, 178);
 
             cmbFaturaTipi.Size =
                 new Size(205, 30);
@@ -663,13 +671,13 @@ namespace UrunFaturaYonetimi
                 FormLabel(
                     "Para Birimi",
                     18,
-                    198));
+                    235));
 
             cmbParaBirimi =
                 new ComboBox();
 
             cmbParaBirimi.Location =
-                new Point(18, 221);
+                new Point(18, 265);
 
             cmbParaBirimi.Size =
                 new Size(205, 30);
@@ -706,7 +714,7 @@ namespace UrunFaturaYonetimi
                 KartOlustur();
 
             kalemCard.Location =
-                new Point(15, 740);
+                new Point(15, 880);
 
             kalemCard.Size =
                 new Size(500, 365);
@@ -727,10 +735,10 @@ namespace UrunFaturaYonetimi
                     "+ Kalem Ekle");
 
             btnKalemEkle.Location =
-                new Point(255, 10);
+                new Point(255, 9);
 
             btnKalemEkle.Size =
-                new Size(110, 34);
+                new Size(110, 40);
 
             btnKalemEkle.Click +=
                 delegate
@@ -746,10 +754,10 @@ namespace UrunFaturaYonetimi
                     "Kalem Sil");
 
             btnKalemSil.Location =
-                new Point(375, 10);
+                new Point(375, 9);
 
             btnKalemSil.Size =
-                new Size(95, 34);
+                new Size(95, 40);
 
             btnKalemSil.Click +=
                 delegate
@@ -770,10 +778,10 @@ namespace UrunFaturaYonetimi
                 KalemGridOlustur();
 
             dgvKalemler.Location =
-                new Point(18, 60);
+                new Point(18, 66);
 
             dgvKalemler.Size =
-                new Size(455, 280);
+                new Size(455, 277);
 
             kalemCard.Controls.Add(
                 dgvKalemler);
@@ -789,7 +797,7 @@ namespace UrunFaturaYonetimi
                 new Panel();
 
             buttons.Location =
-                new Point(15, 1120);
+                new Point(15, 1260);
 
             buttons.Size =
                 new Size(500, 80);
@@ -803,6 +811,8 @@ namespace UrunFaturaYonetimi
 
             btnTaslak.Size =
                 new Size(150, 42);
+
+            btnTaslak.Click += delegate { TaslagiKaydet(); };
 
             buttons.Controls.Add(
                 btnTaslak);
@@ -1474,7 +1484,9 @@ namespace UrunFaturaYonetimi
                 "Vergi Dairesi / Vergi No";
 
             firmaBilgi.Size =
-                new Size(300, 82);
+                new Size(300, 68);
+
+            firmaBilgi.Font = new Font("Segoe UI", 8F, FontStyle.Regular);
 
             firmaBilgi.TextAlign =
                 ContentAlignment.TopRight;
@@ -1483,7 +1495,7 @@ namespace UrunFaturaYonetimi
                 Color.Gray;
 
             firmaBilgi.Location =
-                new Point(420, 66);
+                new Point(420, 72);
 
             paper.Controls.Add(
                 firmaBilgi);
@@ -1491,7 +1503,7 @@ namespace UrunFaturaYonetimi
             paper.Controls.Add(
                 Cizgi(
                     30,
-                    140,
+                    148,
                     700));
 
             Label sayin =
@@ -1555,25 +1567,25 @@ namespace UrunFaturaYonetimi
                 new Panel();
 
             bilgi.Location =
-                new Point(440, 155);
+                new Point(440, 170);
 
             bilgi.Size =
-                new Size(280, 132);
+                new Size(280, 120);
 
             bilgi.BackColor =
                 Color.FromArgb(247, 249, 251);
 
             prvFaturaNo =
-                PreviewLabel(10, 8);
+                PreviewLabel(10, 5);
 
             prvTarih =
-                PreviewLabel(10, 38);
+                PreviewLabel(10, 33);
 
             prvSenaryo =
-                PreviewLabel(10, 68);
+                PreviewLabel(10, 61);
 
             prvTip =
-                PreviewLabel(10, 98);
+                PreviewLabel(10, 89);
 
             bilgi.Controls.Add(
                 prvFaturaNo);
@@ -1593,17 +1605,17 @@ namespace UrunFaturaYonetimi
             paper.Controls.Add(
                 Cizgi(
                     30,
-                    305,
+                    325,
                     700));
 
             dgvOnizleme =
                 new DataGridView();
 
             dgvOnizleme.Location =
-                new Point(30, 330);
+                new Point(30, 348);
 
             dgvOnizleme.Size =
-                new Size(700, 300);
+                new Size(700, 282);
 
             dgvOnizleme.BackgroundColor =
                 Color.White;
@@ -1655,6 +1667,16 @@ namespace UrunFaturaYonetimi
                 "Toplam",
                 "Toplam");
 
+            dgvOnizleme.ColumnHeadersDefaultCellStyle.Font =
+                new Font("Segoe UI", 8.5F, FontStyle.Regular);
+            dgvOnizleme.ColumnHeadersDefaultCellStyle.WrapMode =
+                DataGridViewTriState.False;
+            dgvOnizleme.Columns["Urun"].FillWeight = 25F;
+            dgvOnizleme.Columns["Miktar"].FillWeight = 15F;
+            dgvOnizleme.Columns["Fiyat"].FillWeight = 22F;
+            dgvOnizleme.Columns["Kdv"].FillWeight = 13F;
+            dgvOnizleme.Columns["Toplam"].FillWeight = 25F;
+
             paper.Controls.Add(
                 dgvOnizleme);
 
@@ -1678,7 +1700,7 @@ namespace UrunFaturaYonetimi
             prvKdv =
                 ToplamLabel(
                     10,
-                    52);
+                    59);
 
             prvGenelToplam =
                 ToplamLabel(
@@ -1753,12 +1775,12 @@ namespace UrunFaturaYonetimi
                     label.Left = width - label.Width - 25;
                     label.AutoEllipsis = true;
                 }
-                else if (control is Panel && (control.Height == 125 || control.Height == 132))
+                else if (control is Panel && (control.Height == 120 || control.Height == 115 || control.Height == 125 || control.Height == 148))
                 {
                     control.Width = Math.Max(175, (width - 85) / 2);
                     control.Left = width - control.Width - 25;
-                    control.Top = 155;
-                    control.Height = 132;
+                    control.Top = 170;
+                    control.Height = 120;
                     foreach (Control child in control.Controls)
                         child.Width = control.Width - 18;
                 }
@@ -1770,7 +1792,7 @@ namespace UrunFaturaYonetimi
                         child.Width = control.Width - 20;
                 }
             }
-            if (prvAlici != null) { prvAlici.Width = Math.Max(160, (width - 95) / 2); prvAlici.AutoEllipsis = true; }
+            if (prvAlici != null) { prvAlici.Width = Math.Max(145, (width - 95) / 2); prvAlici.AutoEllipsis = true; }
             if (prvKimlik != null) { prvKimlik.Width = Math.Max(160, (width - 95) / 2); prvKimlik.AutoEllipsis = true; }
         }
 
@@ -2220,6 +2242,9 @@ namespace UrunFaturaYonetimi
             button.Text =
                 text;
 
+            button.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular);
+            button.TextAlign = ContentAlignment.MiddleCenter;
+
             button.FlatStyle =
                 FlatStyle.Flat;
 
@@ -2247,8 +2272,11 @@ namespace UrunFaturaYonetimi
             button.Text =
                 text;
 
+            button.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular);
+            button.TextAlign = ContentAlignment.MiddleCenter;
+
             button.Size =
-                new Size(150, 34);
+                new Size(150, 40);
 
             button.FlatStyle =
                 FlatStyle.Flat;
@@ -2274,11 +2302,10 @@ namespace UrunFaturaYonetimi
             button.Text =
                 text;
 
-            button.AutoSize =
-                true;
-
-            button.Height =
-                30;
+            button.AutoSize = false;
+            button.AutoEllipsis = true;
+            button.Size = new Size(150, 36);
+            button.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular);
 
             button.FlatStyle =
                 FlatStyle.Flat;
@@ -2309,8 +2336,10 @@ namespace UrunFaturaYonetimi
                 new Point(x, y);
 
             label.Size =
-                new Size(255, 29);
+                new Size(255, 26);
 
+            label.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular);
+            label.TextAlign = ContentAlignment.MiddleLeft;
             label.AutoEllipsis = true;
 
             return label;
@@ -2404,6 +2433,138 @@ namespace UrunFaturaYonetimi
                 return "";
 
             return value.ToString();
+        }
+
+        // Mevcut formun kontrollerine taslağın kaydedilmiş alanlarını yükler.
+        public void TaslakYukle(string faturaNo)
+        {
+            TaslakBelgesi belge = TaslakDeposu.Bul(faturaNo);
+            if (belge == null)
+                throw new InvalidOperationException("Düzenlenebilir taslak verisi bulunamadı: " + faturaNo);
+
+            duzenlenenTaslakNo = belge.FaturaNo;
+            txtFaturaNo.Text = belge.FaturaNo;
+            dtpTarih.Value = belge.Tarih >= dtpTarih.MinDate && belge.Tarih <= dtpTarih.MaxDate
+                ? belge.Tarih : DateTime.Today;
+            cmbAliciTipi.SelectedIndex = belge.AliciTipi == "Kurumsal Müşteri" ? 1 : 0;
+            txtAlici.Text = belge.Alici ?? "";
+            txtKimlikNo.Text = belge.KimlikNo ?? "";
+            TaslakComboSec(cmbSenaryo, belge.Senaryo);
+            TaslakComboSec(cmbFaturaTipi, belge.FaturaTipi);
+            TaslakComboSec(cmbParaBirimi, belge.ParaBirimi);
+
+            dgvKalemler.Rows.Clear();
+            if (belge.Kalemler != null)
+                foreach (TaslakKalemi kalem in belge.Kalemler)
+                {
+                    int i = dgvKalemler.Rows.Add();
+                    DataGridViewRow row = dgvKalemler.Rows[i];
+                    row.Cells["StokKodu"].Value = kalem.StokKodu;
+                    row.Cells["Urun"].Value = kalem.Urun;
+                    row.Cells["Miktar"].Value = kalem.Miktar;
+                    row.Cells["BirimFiyat"].Value = kalem.BirimFiyat;
+                    row.Cells["Kdv"].Value = kalem.Kdv;
+                    SatirHesapla(i);
+                }
+            if (dgvKalemler.Rows.Count == 0) BosKalemEkle();
+            OnizlemeyiGuncelle();
+            Text = "Taslak Düzenle • " + belge.FaturaNo;
+        }
+
+        private void TaslakComboSec(ComboBox combo, string deger)
+        {
+            if (string.IsNullOrWhiteSpace(deger)) return;
+            int index = combo.FindStringExact(deger);
+            if (index >= 0) combo.SelectedIndex = index;
+        }
+
+        private void TaslagiKaydet()
+        {
+            try
+            {
+                // Var olan taslağın numarası değiştirilirse eski kaydın kaybolmasını önle.
+                string no = txtFaturaNo.Text.Trim();
+                if (string.IsNullOrWhiteSpace(no))
+                {
+                    MessageBox.Show("Fatura numarası boş olamaz.", "NEXORA");
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(duzenlenenTaslakNo) &&
+                    !string.Equals(no, duzenlenenTaslakNo, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("Düzenlenen taslağın fatura numarasını değiştirmeyin.", "NEXORA");
+                    return;
+                }
+                foreach (FaturaKaydi mevcut in AppData.Faturalar)
+                {
+                    if (string.Equals(mevcut.FaturaNo, no, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals((mevcut.Durum ?? "").Trim(), "Taslak", StringComparison.OrdinalIgnoreCase))
+                    {
+                        MessageBox.Show("Bu numara tamamlanmış bir faturada kullanılıyor. Başka numara girin.", "NEXORA");
+                        return;
+                    }
+                }
+
+                TaslakBelgesi belge = new TaslakBelgesi
+                {
+                    FaturaNo = no,
+                    Tarih = dtpTarih.Value.Date,
+                    AliciTipi = cmbAliciTipi.Text,
+                    Alici = txtAlici.Text.Trim(),
+                    KimlikNo = txtKimlikNo.Text.Trim(),
+                    Senaryo = cmbSenaryo.Text,
+                    FaturaTipi = cmbFaturaTipi.Text,
+                    ParaBirimi = cmbParaBirimi.Text
+                };
+                decimal toplam = 0m;
+                dgvKalemler.EndEdit();
+                foreach (DataGridViewRow row in dgvKalemler.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    string urun = Deger(row, "Urun");
+                    string kod = Deger(row, "StokKodu");
+                    if (string.IsNullOrWhiteSpace(urun) && string.IsNullOrWhiteSpace(kod)) continue;
+                    decimal miktar = DecimalDeger(row.Cells["Miktar"].Value);
+                    decimal fiyat = DecimalDeger(row.Cells["BirimFiyat"].Value);
+                    decimal kdv = DecimalDeger(row.Cells["Kdv"].Value);
+                    toplam += miktar * fiyat * (1m + kdv / 100m);
+                    belge.Kalemler.Add(new TaslakKalemi
+                    {
+                        StokKodu = kod,
+                        Urun = urun,
+                        Miktar = Deger(row, "Miktar"),
+                        BirimFiyat = Deger(row, "BirimFiyat"),
+                        Kdv = Deger(row, "Kdv")
+                    });
+                }
+                belge.GenelToplam = toplam;
+                TaslakDeposu.Kaydet(belge);
+                duzenlenenTaslakNo = no;
+
+                FaturaKaydi kayit = null;
+                foreach (FaturaKaydi item in AppData.Faturalar)
+                    if (string.Equals(item.FaturaNo, no, StringComparison.OrdinalIgnoreCase))
+                    { kayit = item; break; }
+                if (kayit == null)
+                {
+                    kayit = new FaturaKaydi();
+                    AppData.Faturalar.Add(kayit);
+                }
+                kayit.FaturaNo = no;
+                kayit.Tarih = belge.Tarih;
+                kayit.CariAdi = belge.Alici;
+                kayit.CariTipi = belge.AliciTipi == "Kurumsal Müşteri" ? "Kurumsal" : "Bireysel";
+                kayit.BelgeTipi = belge.Senaryo;
+                kayit.GenelToplam = belge.GenelToplam;
+                kayit.Durum = "Taslak";
+                MessageBox.Show("Taslak kaydedildi. Taslaklar menüsünden düzenleyebilirsiniz.",
+                    "NEXORA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Taslak kaydedilemedi:\n" + ex.Message,
+                    "NEXORA", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
