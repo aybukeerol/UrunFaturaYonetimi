@@ -232,6 +232,7 @@
     </Compile>
     <Compile Include="DataAccess\DatabaseInitializer.cs" />
     <Compile Include="DataAccess\GenericDal.cs" />
+    <Compile Include="DataAccess\InvoiceSqlRepository.cs" />
     <Compile Include="DataAccess\SqlQueryManager.cs" />
     <Compile Include="ForgotPasswordForm.cs">
       <SubType>Form</SubType>

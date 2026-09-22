@@ -2,6 +2,8 @@
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using UrunFaturaYonetimi.DataAccess;
 
 namespace UrunFaturaYonetimi
 {
@@ -828,15 +830,86 @@ namespace UrunFaturaYonetimi
                 new Size(175, 42);
 
             btnKaydet.Click +=
-                delegate
+    delegate
+    {
+        try
+        {
+            dgvKalemler.EndEdit();
+
+            var kalemler = new List<SqlFaturaKalemi>();
+            decimal genelToplam = 0m;
+
+            foreach (DataGridViewRow row in dgvKalemler.Rows)
+            {
+                string urunAdi = Deger(row, "Urun");
+
+                // Form açıldığında gelen tamamen boş kalemi atla.
+                if (string.IsNullOrWhiteSpace(urunAdi) &&
+                    string.IsNullOrWhiteSpace(Deger(row, "StokKodu")))
                 {
-                    MessageBox.Show(
-                        "Arayüz hazır.\n\n" +
-                        "SQL Server bağlantısında gerçek fatura kaydı yapılacak.",
-                        "Fatura",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                };
+                    continue;
+                }
+
+                decimal miktar = DecimalDeger(
+                    row.Cells["Miktar"].Value);
+
+                decimal fiyat = DecimalDeger(
+                    row.Cells["BirimFiyat"].Value);
+
+                decimal kdv = DecimalDeger(
+                    row.Cells["Kdv"].Value);
+
+                if (miktar <= 0 || miktar != decimal.Truncate(miktar))
+                {
+                    throw new Exception(
+                        "Ürün miktarı sıfırdan büyük bir tam sayı olmalıdır.");
+                }
+
+                if (fiyat < 0 || kdv < 0)
+                {
+                    throw new Exception(
+                        "Fiyat ve KDV negatif olamaz.");
+                }
+
+                decimal satirToplam = decimal.Round(
+                    miktar * fiyat * (1m + kdv / 100m),
+                    2,
+                    MidpointRounding.AwayFromZero);
+
+                kalemler.Add(new SqlFaturaKalemi
+                {
+                    UrunAdi = urunAdi,
+                    Miktar = decimal.ToInt32(miktar),
+                    BirimFiyat = fiyat,
+                    SatirToplam = satirToplam
+                });
+
+                genelToplam += satirToplam;
+            }
+
+            int faturaId = InvoiceSqlRepository.Kaydet(
+                txtFaturaNo.Text.Trim(),
+                dtpTarih.Value,
+                txtAlici.Text.Trim(),
+                genelToplam,
+                kalemler);
+
+            MessageBox.Show(
+                "Fatura SQL Server'a kaydedildi.\n" +
+                "Fatura ID: " + faturaId,
+                "Başarılı",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                "Fatura kaydedilemedi:\n\n" + ex.Message,
+                "Kayıt Hatası",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    };
 
             buttons.Controls.Add(
                 btnKaydet);
