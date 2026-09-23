@@ -20,14 +20,14 @@ namespace UrunFaturaYonetimi
 
             Label aciklama = new Label();
             aciklama.Text = "Taslaklarınızı görüntüleyin ve kaldığınız yerden devam edin";
-            aciklama.Font = new Font("Segoe UI", 9F);
+            aciklama.Font = new Font("Segoe UI", 10F);
             aciklama.ForeColor = Color.FromArgb(105, 117, 132);
             aciklama.AutoSize = true;
-            aciklama.Location = new Point(28, 62);
+            aciklama.Location = new Point(100, 100);
             pnlContent.Controls.Add(aciklama);
 
             DataGridView grid = TemelGrid();
-            grid.Location = new Point(28, 95);
+            grid.Location = new Point(28, 150);
             grid.Size = new Size(
                 Math.Max(1050, pnlContent.ClientSize.Width - 56),
                 Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
@@ -48,7 +48,7 @@ namespace UrunFaturaYonetimi
             detay.HeaderText = "Görüntüle";
             detay.Text = "Detay";
             detay.UseColumnTextForButtonValue = true;
-            detay.Width = 95;
+            detay.Width = 150;
             detay.MinimumWidth = 85;
             detay.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
             detay.FlatStyle = FlatStyle.Flat;
@@ -59,7 +59,7 @@ namespace UrunFaturaYonetimi
             duzenle.HeaderText = "Düzenle";
             duzenle.Text = "Düzenle";
             duzenle.UseColumnTextForButtonValue = true;
-            duzenle.Width = 100;
+            duzenle.Width = 170;
             duzenle.MinimumWidth = 95;
             duzenle.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
             duzenle.FlatStyle = FlatStyle.Flat;

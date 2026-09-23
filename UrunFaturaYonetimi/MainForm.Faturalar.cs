@@ -39,99 +39,431 @@ namespace UrunFaturaYonetimi
             FaturalarAc(null, null, null);
         }
 
-        private void FaturalarAc(
-            string cariAdi,
-            DateTime? baslangic,
-            DateTime? bitis)
+        // SQL'den sayfalı listeleme; XML taslakları ayrı ekranda kalır.
+        private void FaturalarAc(string cariAdi, DateTime? baslangic, DateTime? bitis)
         {
             SayfayiTemizle("Faturalar");
 
-            Label title = SayfaListeBasligi("Fatura Listesi");
-            pnlContent.Controls.Add(title);
+            Color ink = Color.FromArgb(30, 43, 61);
+            Color soft = Color.FromArgb(107, 121, 141);
+            Color border = Color.FromArgb(226, 233, 241);
+            Color background = Color.FromArgb(245, 248, 252);
 
-            Label filtreBilgisi = null;
-            if (!string.IsNullOrWhiteSpace(cariAdi) || baslangic.HasValue || bitis.HasValue)
+            // Düzen: sabit koordinatlar yerine iç içe yerleşim panelleri.
+            // Böylece Windows ekran ölçeklendirmesinde etiketler ve kutular çakışmaz.
+            TableLayoutPanel layout = new TableLayoutPanel
             {
-                filtreBilgisi = new Label();
-                filtreBilgisi.AutoSize = true;
-                filtreBilgisi.ForeColor = _primary;
-                filtreBilgisi.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+                BackColor = background, Padding = new Padding(24, 22, 24, 16),
+                Margin = new Padding(0)
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 105F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 268F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
+            pnlContent.Controls.Add(layout);
+            layout.BringToFront();
 
-                string metin = "AI filtresi: ";
-                if (!string.IsNullOrWhiteSpace(cariAdi)) metin += cariAdi;
-                if (baslangic.HasValue)
-                    metin += (metin.EndsWith(": ") ? "" : " • ") + baslangic.Value.ToString("dd.MM.yyyy");
-                if (bitis.HasValue)
-                    metin += " - " + bitis.Value.AddDays(-1).ToString("dd.MM.yyyy");
+            TableLayoutPanel heading = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+                BackColor = background, Margin = new Padding(0, 0, 0, 12)
+            };
+            heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 53F));
+            heading.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            heading.Controls.Add(new Label
+            {
+                Text = "Fatura Listesi", Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 21F, FontStyle.Bold), ForeColor = ink,
+                Margin = new Padding(0)
+            }, 0, 0);
+            heading.Controls.Add(new Label
+            {
+                Text = "Kaydedilmiş faturalarınızı görüntüleyin ve yönetin.",
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.TopLeft,
+                Font = new Font("Segoe UI", 10F), ForeColor = soft,
+                Margin = new Padding(2, 0, 0, 0)
+            }, 0, 1);
+            layout.Controls.Add(heading, 0, 0);
 
-                filtreBilgisi.Text = metin;
-                filtreBilgisi.Location = new Point(28, 62);
-                pnlContent.Controls.Add(filtreBilgisi);
-            }
+            Panel filterCard = new Panel
+            {
+                Dock = DockStyle.Fill, BackColor = Color.White,
+                Margin = new Padding(0, 0, 0, 18), Padding = new Padding(20, 14, 20, 14)
+            };
+            layout.Controls.Add(filterCard, 0, 1);
+
+            TableLayoutPanel filters = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 4,
+                BackColor = Color.White, Margin = new Padding(0), Padding = new Padding(0)
+            };
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17F));
+            filters.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            filters.RowStyles.Add(new RowStyle(SizeType.Absolute, 69F));
+            filters.RowStyles.Add(new RowStyle(SizeType.Absolute, 77F));
+            filters.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            filterCard.Controls.Add(filters);
+
+            filters.Controls.Add(new Label
+            {
+                Text = "ARAMA VE FİLTRELER", Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold), ForeColor = soft,
+                TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(0)
+            }, 0, 0);
+            filters.SetColumnSpan(filters.GetControlFromPosition(0, 0), 4);
+
+            // Alan başlıkları ayrı satırda: DPI büyüse de TextBox ile çakışmaz.
+            Func<string, Control, Control> field = (caption, control) =>
+            {
+                TableLayoutPanel box = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+                    Margin = new Padding(0, 0, 16, 6)
+                };
+                box.RowStyles.Add(new RowStyle(SizeType.Absolute, 27F));
+                box.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                box.Controls.Add(new Label
+                {
+                    Text = caption, Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold), ForeColor = soft,
+                    Margin = new Padding(0)
+                }, 0, 0);
+                control.Dock = DockStyle.Fill;
+                control.Margin = new Padding(0, 0, 0, 4);
+                box.Controls.Add(control, 0, 1);
+                return box;
+            };
+
+            TextBox txtNo = new TextBox { Font = new Font("Segoe UI", 10F) };
+            TextBox txtCari = new TextBox
+            {
+                Font = new Font("Segoe UI", 10F), Text = cariAdi ?? ""
+            };
+            filters.Controls.Add(field("Fatura numarası", txtNo), 0, 1);
+            filters.SetColumnSpan(filters.GetControlFromPosition(0, 1), 2);
+            filters.Controls.Add(field("Cari / Alıcı", txtCari), 2, 1);
+            filters.SetColumnSpan(filters.GetControlFromPosition(2, 1), 2);
+
+            CheckBox chkTarih = new CheckBox
+            {
+                Text = "Tarih aralığı kullan", AutoSize = true,
+                Font = new Font("Segoe UI", 9F),
+                Checked = baslangic.HasValue || bitis.HasValue,
+                Dock = DockStyle.Top, Margin = new Padding(0, 0, 0, 5)
+            };
+            DateTimePicker dtBas = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Short, Font = new Font("Segoe UI", 9F),
+                Value = baslangic ?? DateTime.Today.AddMonths(-1),
+                Enabled = chkTarih.Checked, Dock = DockStyle.Fill,
+                Margin = new Padding(0, 0, 8, 0)
+            };
+            DateTimePicker dtBit = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Short, Font = new Font("Segoe UI", 9F),
+                Value = bitis.HasValue ? bitis.Value.AddDays(-1) : DateTime.Today,
+                Enabled = chkTarih.Checked, Dock = DockStyle.Fill,
+                Margin = new Padding(0)
+            };
+            chkTarih.CheckedChanged += delegate
+            {
+                dtBas.Enabled = chkTarih.Checked;
+                dtBit.Enabled = chkTarih.Checked;
+            };
+            TableLayoutPanel dateBox = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2,
+                Margin = new Padding(0, 0, 16, 5)
+            };
+            dateBox.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            dateBox.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            dateBox.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+            dateBox.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            dateBox.Controls.Add(chkTarih, 0, 0);
+            dateBox.SetColumnSpan(chkTarih, 2);
+            dateBox.Controls.Add(dtBas, 0, 1);
+            dateBox.Controls.Add(dtBit, 1, 1);
+            filters.Controls.Add(dateBox, 0, 2);
+            filters.SetColumnSpan(dateBox, 2);
+
+            ComboBox cmbSirala = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9F)
+            };
+            cmbSirala.Items.AddRange(new object[]
+            {
+                "En yeniden eskiye", "En eskiden yeniye",
+                "Tutar: yüksekten düşüğe", "Tutar: düşükten yükseğe"
+            });
+            cmbSirala.SelectedIndex = 0;
+            filters.Controls.Add(field("Sıralama", cmbSirala), 2, 2);
+
+            ComboBox cmbBoyut = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9F)
+            };
+            cmbBoyut.Items.AddRange(new object[] { "25", "50", "100" });
+            cmbBoyut.SelectedIndex = 0;
+            filters.Controls.Add(field("Sayfa başına", cmbBoyut), 3, 2);
+
+            Button btnAra = new Button
+            {
+                Text = "Filtrele", Size = new Size(112, 36),
+                BackColor = _primary, ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Margin = new Padding(10, 0, 0, 0)
+            };
+            btnAra.FlatAppearance.BorderSize = 0;
+            Button btnTemizle = new Button
+            {
+                Text = "Temizle", Size = new Size(100, 36),
+                BackColor = Color.White, ForeColor = ink,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9F),
+                Margin = new Padding(0)
+            };
+            btnTemizle.FlatAppearance.BorderColor = border;
+            FlowLayoutPanel actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false, Margin = new Padding(0), Padding = new Padding(0, 2, 0, 0)
+            };
+            actions.Controls.Add(btnTemizle);
+            actions.Controls.Add(btnAra);
+            filters.Controls.Add(actions, 0, 3);
+            filters.SetColumnSpan(actions, 4);
+
+            Panel gridCard = new Panel
+            {
+                Dock = DockStyle.Fill, BackColor = Color.White,
+                Margin = new Padding(0), Padding = new Padding(1)
+            };
+            layout.Controls.Add(gridCard, 0, 2);
 
             DataGridView grid = TemelGrid();
-            grid.Location = new Point(28, 95);
-            grid.Size = new Size(
-                Math.Max(1050, pnlContent.ClientSize.Width - 56),
-                Math.Max(420, pnlContent.ClientSize.Height - grid.Top - 24));
-            grid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.Dock = DockStyle.Fill;
+            grid.Margin = new Padding(0);
+            grid.ReadOnly = true;
             grid.MultiSelect = false;
+            grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            grid.RowTemplate.Height = 42;
+            grid.ColumnHeadersHeight = 45;
+            grid.BackgroundColor = Color.White;
+            grid.BorderStyle = BorderStyle.None;
+            grid.GridColor = border;
+            grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
+            grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
 
             KolonEkle(grid, "FaturaNo", "Fatura No");
             KolonEkle(grid, "Tarih", "Tarih");
-            KolonEkle(grid, "Cari", "Cari");
+            KolonEkle(grid, "Cari", "Cari / Alıcı");
             KolonEkle(grid, "Tip", "Cari Tipi");
             KolonEkle(grid, "BelgeTipi", "Belge Tipi");
             KolonEkle(grid, "Tutar", "Genel Toplam");
             KolonEkle(grid, "Durum", "Durum");
-
-            DataGridViewButtonColumn detay = new DataGridViewButtonColumn();
-            detay.Name = "Detay";
-            detay.HeaderText = "İşlem";
-            detay.Text = "Detayı Aç";
-            detay.UseColumnTextForButtonValue = true;
-            detay.Width = 150;
-            detay.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-            detay.MinimumWidth = 140;
-            detay.FlatStyle = FlatStyle.Flat;
+            DataGridViewButtonColumn detay = new DataGridViewButtonColumn
+            {
+                Name = "Detay", HeaderText = "İşlem", Text = "Detayı Aç",
+                UseColumnTextForButtonValue = true,
+                FlatStyle = FlatStyle.Flat
+            };
             grid.Columns.Add(detay);
+            grid.Columns["FaturaNo"].FillWeight = 125;
+            grid.Columns["Tarih"].FillWeight = 95;
+            grid.Columns["Cari"].FillWeight = 175;
+            grid.Columns["Tip"].FillWeight = 72;
+            grid.Columns["BelgeTipi"].FillWeight = 82;
+            grid.Columns["Tutar"].FillWeight = 112;
+            grid.Columns["Durum"].FillWeight = 90;
+            grid.Columns["Detay"].FillWeight = 98;
+            grid.Columns["Tutar"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            gridCard.Controls.Add(grid);
 
-            foreach (FaturaKaydi fatura in AppData.Faturalar)
+            TableLayoutPanel footer = new TableLayoutPanel
             {
-                bool uygun = true;
-                if (!string.IsNullOrWhiteSpace(cariAdi))
-                    uygun = fatura.CariAdi.IndexOf(cariAdi, StringComparison.CurrentCultureIgnoreCase) >= 0;
-                if (uygun && baslangic.HasValue) uygun = fatura.Tarih >= baslangic.Value;
-                if (uygun && bitis.HasValue) uygun = fatura.Tarih < bitis.Value;
-                if (!uygun) continue;
-
-                grid.Rows.Add(
-                    fatura.FaturaNo,
-                    fatura.Tarih.ToShortDateString(),
-                    fatura.CariAdi,
-                    fatura.CariTipi,
-                    fatura.BelgeTipi,
-                    fatura.GenelToplam.ToString("N2") + " TL",
-                    fatura.Durum,
-                    "Detayı Aç");
-            }
-
-            grid.CellContentClick += delegate (object sender, DataGridViewCellEventArgs e)
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                BackColor = background, Margin = new Padding(0),
+                Padding = new Padding(2, 12, 2, 0)
+            };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 246F));
+            layout.Controls.Add(footer, 0, 3);
+            Label lblSayfa = new Label
             {
-                if (e.RowIndex < 0 || grid.Columns[e.ColumnIndex].Name != "Detay") return;
-                string no = Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value);
-                FaturaDetayPenceresiAc(no);
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = soft, Font = new Font("Segoe UI", 9.5F),
+                Margin = new Padding(0)
+            };
+            Button btnOnceki = new Button
+            {
+                Text = "‹  Önceki", Size = new Size(112, 36),
+                BackColor = Color.White, ForeColor = ink,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Margin = new Padding(0, 0, 10, 0)
+            };
+            Button btnSonraki = new Button
+            {
+                Text = "Sonraki  ›", Size = new Size(112, 36),
+                BackColor = Color.White, ForeColor = ink,
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                Margin = new Padding(0)
+            };
+            btnOnceki.FlatAppearance.BorderColor = border;
+            btnSonraki.FlatAppearance.BorderColor = border;
+            FlowLayoutPanel pager = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, Margin = new Padding(0),
+                Padding = new Padding(0, 1, 0, 0)
+            };
+            pager.Controls.Add(btnOnceki);
+            pager.Controls.Add(btnSonraki);
+            footer.Controls.Add(lblSayfa, 0, 0);
+            footer.Controls.Add(pager, 1, 0);
+
+            int aktifSayfa = 1;
+            int toplamKayit = 0;
+            Action listele = delegate
+            {
+                int boyut = Convert.ToInt32(cmbBoyut.SelectedItem);
+                if (chkTarih.Checked && dtBas.Value.Date > dtBit.Value.Date)
+                {
+                    MessageBox.Show("Başlangıç tarihi bitiş tarihinden sonra olamaz.",
+                        "NEXORA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string siralama;
+                switch (cmbSirala.SelectedIndex)
+                {
+                    case 1: siralama = "InvoiceDate ASC, Id ASC"; break;
+                    case 2: siralama = "TotalAmount DESC, Id DESC"; break;
+                    case 3: siralama = "TotalAmount ASC, Id ASC"; break;
+                    default: siralama = "InvoiceDate DESC, Id DESC"; break;
+                }
+
+                const string kosul = @"
+WHERE (@no = '' OR InvoiceNumber LIKE '%' + @no + '%')
+  AND (@cari = '' OR CustomerTitle LIKE '%' + @cari + '%')
+  AND (@bas IS NULL OR InvoiceDate >= @bas)
+  AND (@bit IS NULL OR InvoiceDate < @bit)";
+
+                try
+                {
+                    using (SqlConnection conn = new SqlConnection(
+                        UrunFaturaYonetimi.DataAccess.DatabaseInitializer.ConnectionString))
+                    {
+                        conn.Open();
+                        using (SqlCommand say = new SqlCommand(
+                            "SELECT COUNT_BIG(*) FROM dbo.Invoices " + kosul, conn))
+                        {
+                            FaturaListeParametreleri(say, txtNo.Text, txtCari.Text,
+                                chkTarih.Checked ? (DateTime?)dtBas.Value.Date : null,
+                                chkTarih.Checked ? (DateTime?)dtBit.Value.Date.AddDays(1) : null);
+                            long adet = Convert.ToInt64(say.ExecuteScalar());
+                            toplamKayit = adet > int.MaxValue ? int.MaxValue : (int)adet;
+                        }
+
+                        int toplamSayfa = Math.Max(1, (int)Math.Ceiling((double)toplamKayit / boyut));
+                        if (aktifSayfa > toplamSayfa) aktifSayfa = toplamSayfa;
+                        if (aktifSayfa < 1) aktifSayfa = 1;
+
+                        using (SqlCommand cmd = new SqlCommand(@"
+SELECT Id, InvoiceNumber, InvoiceDate, CustomerTitle, TotalAmount
+FROM dbo.Invoices " + kosul + " ORDER BY " + siralama + @"
+OFFSET @atla ROWS FETCH NEXT @al ROWS ONLY;", conn))
+                        {
+                            FaturaListeParametreleri(cmd, txtNo.Text, txtCari.Text,
+                                chkTarih.Checked ? (DateTime?)dtBas.Value.Date : null,
+                                chkTarih.Checked ? (DateTime?)dtBit.Value.Date.AddDays(1) : null);
+                            cmd.Parameters.Add("@atla", System.Data.SqlDbType.BigInt).Value = (long)(aktifSayfa - 1) * boyut;
+                            cmd.Parameters.Add("@al", System.Data.SqlDbType.Int).Value = boyut;
+
+                            grid.Rows.Clear();
+                            using (SqlDataReader rd = cmd.ExecuteReader())
+                            {
+                                while (rd.Read())
+                                {
+                                    int satir = grid.Rows.Add(
+                                        Convert.ToString(rd["InvoiceNumber"]),
+                                        Convert.ToDateTime(rd["InvoiceDate"]).ToString("dd.MM.yyyy"),
+                                        Convert.ToString(rd["CustomerTitle"]),
+                                        "—", "—",
+                                        Convert.ToDecimal(rd["TotalAmount"]).ToString("N2") + " TL",
+                                        "Kaydedildi", "Detayı Aç");
+                                    grid.Rows[satir].Tag = Convert.ToInt32(rd["Id"]);
+                                }
+                            }
+                        }
+                        lblSayfa.Text = toplamKayit + " kayıt  •  Sayfa " + aktifSayfa + " / " + toplamSayfa;
+                        btnOnceki.Enabled = aktifSayfa > 1;
+                        btnSonraki.Enabled = aktifSayfa < toplamSayfa;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    grid.Rows.Clear();
+                    lblSayfa.Text = "Faturalar yüklenemedi";
+                    btnOnceki.Enabled = false;
+                    btnSonraki.Enabled = false;
+                    MessageBox.Show("Fatura listesi SQL Server'dan okunamadı.\n\n" + ex.Message,
+                        "NEXORA - Faturalar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             };
 
-            grid.CellDoubleClick += delegate (object sender, DataGridViewCellEventArgs e)
+            btnAra.Click += delegate { aktifSayfa = 1; listele(); };
+            btnTemizle.Click += delegate
+            {
+                txtNo.Clear(); txtCari.Clear(); chkTarih.Checked = false;
+                cmbSirala.SelectedIndex = 0; cmbBoyut.SelectedIndex = 0;
+                aktifSayfa = 1; listele();
+            };
+            btnOnceki.Click += delegate { if (aktifSayfa > 1) { aktifSayfa--; listele(); } };
+            btnSonraki.Click += delegate { aktifSayfa++; listele(); };
+            cmbSirala.SelectedIndexChanged += delegate { aktifSayfa = 1; listele(); };
+            cmbBoyut.SelectedIndexChanged += delegate { aktifSayfa = 1; listele(); };
+            txtNo.KeyDown += delegate (object s, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; aktifSayfa = 1; listele(); }
+            };
+            txtCari.KeyDown += delegate (object s, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; aktifSayfa = 1; listele(); }
+            };
+            grid.CellContentClick += delegate (object s, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0 || grid.Columns[e.ColumnIndex].Name != "Detay") return;
+                FaturaDetayPenceresiAc(Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value));
+            };
+            grid.CellDoubleClick += delegate (object s, DataGridViewCellEventArgs e)
             {
                 if (e.RowIndex < 0) return;
-                string no = Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value);
-                FaturaDetayPenceresiAc(no);
+                FaturaDetayPenceresiAc(Convert.ToString(grid.Rows[e.RowIndex].Cells["FaturaNo"].Value));
             };
+            listele();
+        }
 
-            pnlContent.Controls.Add(grid);
+        private static void FaturaListeParametreleri(
+            SqlCommand cmd, string no, string cari, DateTime? bas, DateTime? bit)
+        {
+            cmd.Parameters.Add("@no", System.Data.SqlDbType.NVarChar, 100).Value = (no ?? "").Trim();
+            cmd.Parameters.Add("@cari", System.Data.SqlDbType.NVarChar, -1).Value = (cari ?? "").Trim();
+            cmd.Parameters.Add("@bas", System.Data.SqlDbType.DateTime2).Value =
+                bas.HasValue ? (object)bas.Value : DBNull.Value;
+            cmd.Parameters.Add("@bit", System.Data.SqlDbType.DateTime2).Value =
+                bit.HasValue ? (object)bit.Value : DBNull.Value;
         }
 
         private void FaturaDetayPenceresiAc(string faturaNo)
@@ -172,6 +504,8 @@ ORDER BY Id DESC;", conn))
                                 tarih = Convert.ToDateTime(rd["InvoiceDate"]);
                                 cari = Convert.ToString(rd["CustomerTitle"]);
                                 genelToplam = Convert.ToDecimal(rd["TotalAmount"]);
+                                belgeTipi = "—"; // Bu alan henüz dbo.Invoices tablosunda yok.
+                                durum = "Kaydedildi";
                             }
                         }
                     }
@@ -348,7 +682,7 @@ ORDER BY d.Id;", conn))
             bilgiCard.Controls.Add(lblBelgeEtiket);
 
             Label lblBelge = new Label();
-            lblBelge.Text = string.IsNullOrWhiteSpace(belgeTipi) ? "E-Fatura" : belgeTipi;
+            lblBelge.Text = string.IsNullOrWhiteSpace(belgeTipi) ? "—" : belgeTipi;
             lblBelge.AutoSize = true;
             lblBelge.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
             lblBelge.ForeColor = Color.FromArgb(28, 40, 57);

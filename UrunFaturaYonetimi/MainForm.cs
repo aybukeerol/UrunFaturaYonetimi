@@ -379,7 +379,7 @@ namespace UrunFaturaYonetimi
             };
             PictureBox avatar = new PictureBox
             {
-                Size = new Size(34, 34),
+                Size = new Size(34, 70),
                 Location = new Point(13, 23),
                 SizeMode = PictureBoxSizeMode.CenterImage,
                 Image = IconBitmap("\uE77B", 15, Color.White, 34, _primary)

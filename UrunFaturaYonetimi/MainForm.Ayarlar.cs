@@ -191,9 +191,9 @@ namespace UrunFaturaYonetimi
             Label appTitle = new Label();
             appTitle.Text = "NEXORA";
             appTitle.AutoSize = true;
-            appTitle.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
+            appTitle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             appTitle.ForeColor = _primary;
-            appTitle.Location = new Point(22, 18);
+            appTitle.Location = new Point(22, 25);
             appCard.Controls.Add(appTitle);
 
             Label appSub = new Label();

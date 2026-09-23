@@ -740,7 +740,7 @@ namespace UrunFaturaYonetimi
                 new Point(255, 9);
 
             btnKalemEkle.Size =
-                new Size(110, 40);
+                new Size(255, 40);
 
             btnKalemEkle.Click +=
                 delegate
@@ -759,7 +759,7 @@ namespace UrunFaturaYonetimi
                 new Point(375, 9);
 
             btnKalemSil.Size =
-                new Size(95, 40);
+                new Size(255, 40);
 
             btnKalemSil.Click +=
                 delegate
@@ -812,7 +812,7 @@ namespace UrunFaturaYonetimi
                 new Point(130, 15);
 
             btnTaslak.Size =
-                new Size(150, 42);
+                new Size(295, 42);
 
             btnTaslak.Click += delegate { TaslagiKaydet(); };
 
@@ -827,7 +827,7 @@ namespace UrunFaturaYonetimi
                 new Point(295, 15);
 
             btnKaydet.Size =
-                new Size(175, 42);
+                new Size(295, 42);
 
             btnKaydet.Click +=
     delegate
@@ -1610,7 +1610,7 @@ namespace UrunFaturaYonetimi
                 "-";
 
             prvAlici.Size =
-                new Size(380, 28);
+                new Size(380, 34);
 
             prvAlici.Font =
                 new Font(
@@ -1619,7 +1619,7 @@ namespace UrunFaturaYonetimi
                     FontStyle.Bold);
 
             prvAlici.Location =
-                new Point(35, 192);
+                new Point(35, 191);
 
             paper.Controls.Add(
                 prvAlici);
@@ -1628,7 +1628,9 @@ namespace UrunFaturaYonetimi
                 new Label();
 
             prvKimlik.Size =
-                new Size(380, 25);
+                new Size(380, 34);
+            prvKimlik.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+            prvKimlik.TextAlign = ContentAlignment.MiddleLeft;
 
             prvKimlik.Location =
                 new Point(35, 225);
@@ -1808,65 +1810,110 @@ namespace UrunFaturaYonetimi
             return background;
         }
 
-        // Önizleme kâğıdının yatay taşmasını engeller. Veri alanları değişmez.
+        // Yalnızca e-Fatura kağıdının üst bilgi alanını ve ona bağlı
+        // ayırıcı/tablo/toplam konumlarını ekran genişliğine göre hizalar.
         private void OnizlemeYerlesiminiGuncelle()
         {
             if (sagBackground == null || previewPaper == null || previewPaper.IsDisposed)
                 return;
+
             Panel paper = previewPaper;
             int width = Math.Max(420, Math.Min(760, sagBackground.ClientSize.Width - 36));
-            paper.Width = width;
-            paper.Left = Math.Max(12, (sagBackground.ClientSize.Width - width) / 2);
             int inner = width - 60;
-            foreach (Control control in paper.Controls)
+            bool dar = width < 690;
+
+            paper.SuspendLayout();
+            try
             {
-                if (control is DataGridView)
+                paper.Width = width;
+                paper.Left = Math.Max(12, (sagBackground.ClientSize.Width - width) / 2);
+                paper.Height = dar ? 1000 : 900;
+
+                // Dar önizlemede sağdaki fatura bilgi kutusunu alıcının ALTINA al.
+                // 455 px genişlikte iki kolon yan yana olursa kimlik ve fatura no kesilir.
+                int bilgiTop = dar ? 278 : 170;
+                int cizgiTop = dar ? 425 : 325;
+                int tabloTop = dar ? 448 : 348;
+                int toplamTop = dar ? 750 : 650;
+
+                foreach (Control control in paper.Controls)
                 {
-                    control.Left = 30;
-                    control.Width = inner;
+                    Label label = control as Label;
+                    if (label != null &&
+                        (label.Text == "ŞİRKET ÜNVANI" || label.Text.StartsWith("Firma adresi")))
+                    {
+                        label.Width = Math.Max(145, (width - 85) / 2);
+                        label.Left = width - label.Width - 25;
+                    }
+
+                    Panel panel = control as Panel;
+                    if (panel != null && panel.Height == 1)
+                    {
+                        panel.Left = 30;
+                        panel.Width = inner;
+                        if (panel.Top != 148)
+                            panel.Top = cizgiTop;
+                    }
+                    else if (panel != null && panel.Controls.Contains(prvFaturaNo))
+                    {
+                        panel.Top = bilgiTop;
+                        panel.Left = dar ? 30 : width - 305;
+                        panel.Width = dar ? inner : 280;
+                        panel.Height = 125;
+                        foreach (Control child in panel.Controls)
+                        {
+                            child.Width = panel.Width - 20;
+                            child.AutoSize = false;
+                            Label infoLabel = child as Label;
+                            if (infoLabel != null)
+                            {
+                                infoLabel.Height = 27;
+                                infoLabel.AutoEllipsis = false;
+                            }
+                        }
+                    }
+                    else if (panel != null && panel.Controls.Contains(prvGenelToplam))
+                    {
+                        panel.Top = toplamTop;
+                        panel.Width = Math.Min(400, inner);
+                        panel.Left = width - panel.Width - 30;
+                        foreach (Control child in panel.Controls)
+                            child.Width = panel.Width - 20;
+                    }
+
+                    DataGridView grid = control as DataGridView;
+                    if (grid != null)
+                    {
+                        grid.Left = 30;
+                        grid.Top = tabloTop;
+                        grid.Width = inner;
+                    }
                 }
-                else if (control is Panel && control.Height == 1)
+
+                int aliciWidth = dar ? inner - 10 : Math.Max(145, width - 350);
+                if (prvAlici != null)
                 {
-                    control.Left = 30;
-                    control.Width = inner;
+                    prvAlici.Left = 35;
+                    prvAlici.Top = 191;
+                    prvAlici.Width = aliciWidth;
+                    prvAlici.Height = 34;
+                    prvAlici.TextAlign = ContentAlignment.MiddleLeft;
+                    prvAlici.AutoEllipsis = false;
+                }
+                if (prvKimlik != null)
+                {
+                    prvKimlik.Left = 35;
+                    prvKimlik.Top = 225;
+                    prvKimlik.Width = aliciWidth;
+                    prvKimlik.Height = 34;
+                    prvKimlik.TextAlign = ContentAlignment.MiddleLeft;
+                    prvKimlik.AutoEllipsis = false;
                 }
             }
-            // Üst şirket bilgileri ve sağ fatura bilgi kutusu
-            // dar ekranlarda sol alıcı bilgileriyle çakışmaz.
-            foreach (Control control in paper.Controls)
+            finally
             {
-                Label label = control as Label;
-                if (label != null && label.Text == "ŞİRKET ÜNVANI")
-                {
-                    label.Width = Math.Max(145, (width - 85) / 2);
-                    label.Left = width - label.Width - 25;
-                    label.AutoEllipsis = true;
-                }
-                else if (label != null && label.Text.StartsWith("Firma adresi"))
-                {
-                    label.Width = Math.Max(145, (width - 85) / 2);
-                    label.Left = width - label.Width - 25;
-                    label.AutoEllipsis = true;
-                }
-                else if (control is Panel && (control.Height == 120 || control.Height == 115 || control.Height == 125 || control.Height == 148))
-                {
-                    control.Width = Math.Max(175, (width - 85) / 2);
-                    control.Left = width - control.Width - 25;
-                    control.Top = 170;
-                    control.Height = 120;
-                    foreach (Control child in control.Controls)
-                        child.Width = control.Width - 18;
-                }
-                else if (control is Panel && control.Height == 165)
-                {
-                    control.Width = Math.Min(400, inner);
-                    control.Left = width - control.Width - 30;
-                    foreach (Control child in control.Controls)
-                        child.Width = control.Width - 20;
-                }
+                paper.ResumeLayout();
             }
-            if (prvAlici != null) { prvAlici.Width = Math.Max(145, (width - 95) / 2); prvAlici.AutoEllipsis = true; }
-            if (prvKimlik != null) { prvKimlik.Width = Math.Max(160, (width - 95) / 2); prvKimlik.AutoEllipsis = true; }
         }
 
         // =========================================================
